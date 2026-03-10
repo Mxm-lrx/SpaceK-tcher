@@ -1,36 +1,33 @@
 import sys
 import pygame
-from settings import SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR, FPS
+from settings import BG_COLOR
 from level import Level
 
 class Game:
-    def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.clock = pygame.time.Clock()
-        self.level = Level()
+    def __init__(self, screen):
+        self.screen = screen
+        # Équipe: ajouter les prochains niveaux dans cette liste (Level2, Level3, etc.).
+        self.levels = [Level()]
+        self.current_level_index = 0
 
-    def handle_events(self):
+    @property
+    def current_level(self):
+        return self.levels[self.current_level_index]
+
+    def run(self, dt):
+        self.screen.fill(BG_COLOR)
+        self.current_level.run(dt)
+
+if __name__ == '__main__':
+    pygame.init()
+    screen = pygame.display.set_mode((1280, 720))
+    game = Game(screen)
+    clock = pygame.time.Clock()
+
+    while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
-    def update(self):
-        self.level.update()
-
-    def draw(self):
-        self.screen.fill(BG_COLOR)
-        self.level.draw(self.screen)
+        game.run(clock.tick(60) / 1000)
         pygame.display.update()
-
-    def run(self):
-        while True:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(FPS)
-
-if __name__ == '__main__':
-    game = Game()
-    game.run()
