@@ -1,7 +1,7 @@
 import pygame
-import os
 from settings import BG_COLOR, SCREEN_WIDTH, SCREEN_HEIGHT, SOFT_YELLOW
 from level import Level
+from utils import load_texture
 
 class Game:
     def __init__(self, screen):
@@ -15,12 +15,7 @@ class Game:
 
         # Équipe : Initialisation des éléments graphiques du menu
         self.font = pygame.font.Font(None, 48)
-        icon_path = os.path.join('assets', 'logo_rvb.png')
-        if os.path.exists(icon_path):
-            self.logo = pygame.image.load(icon_path).convert_alpha()
-            self.logo = pygame.transform.smoothscale(self.logo, (350, 350))
-        else:
-            self.logo = None
+        self.logo = load_texture('MissingTexture.jpg', scale_to=(350, 350))
 
     @property
     def current_level(self):
@@ -28,9 +23,8 @@ class Game:
 
     def draw_menu(self):
         # Équipe : Affichage du logo au centre de l'écran s'il est trouvé
-        if self.logo:
-            logo_rect = self.logo.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
-            self.screen.blit(self.logo, logo_rect)
+        logo_rect = self.logo.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
+        self.screen.blit(self.logo, logo_rect)
 
         # Équipe : Affichage de l'instruction pour lancer la partie
         text_surf = self.font.render("Appuie sur ESPACE pour Jouer", True, SOFT_YELLOW)

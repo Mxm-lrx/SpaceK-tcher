@@ -1,7 +1,7 @@
 import math
-import os
 import pygame
 from settings import SOFT_RED, OFF_WHITE
+from utils import load_texture
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, groups, ground_y):
@@ -48,11 +48,12 @@ class Player(pygame.sprite.Sprite):
         self.launched = False
 
     def _load_rocket_sprite(self, file_name, fallback_image):
-        sprite_path = os.path.join('assets', file_name)
-        if os.path.exists(sprite_path):
-            image = pygame.image.load(sprite_path).convert_alpha()
-            return pygame.transform.smoothscale(image, self.rocket_size)
-        return pygame.transform.smoothscale(fallback_image, self.rocket_size)
+        return load_texture(
+            file_name,
+            convert_alpha=True,
+            scale_to=self.rocket_size,
+            fallback_surface=fallback_image,
+        )
 
     def reset_to_pad(self):
         self.position.update(self.spawn_position)
