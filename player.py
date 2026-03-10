@@ -3,11 +3,9 @@ import pygame
 from settings import SOFT_RED, OFF_WHITE
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, pos, groups, world_width, world_height, ground_y):
+    def __init__(self, pos, groups, ground_y):
         super().__init__(groups)
         self.spawn_position = pygame.Vector2(pos)
-        self.world_width = world_width
-        self.world_height = world_height
         self.ground_y = ground_y
 
         self.base_image = pygame.Surface((26, 46), pygame.SRCALPHA)
@@ -24,12 +22,12 @@ class Player(pygame.sprite.Sprite):
         self.angular_velocity = 0.0
 
         # Équipe : Toutes les variables en dessous servent à régler la conduite de la fusée (poids, poussée, etc.). À vous de jouer pour l'équilibrage !
-        self.launch_impulse = -220.0
+        self.launch_impulse = -500.0
         self.gravity = 300.0
-        self.thrust_power = 360.0
+        self.thrust_power = 600.0
         self.linear_drag = 0.55
 
-        self.turn_acceleration = 260.0
+        self.turn_acceleration = 400.0
         self.turn_damping = 7.0
         self.max_turn_speed = 120.0
         self.max_tilt = 65.0
@@ -88,18 +86,6 @@ class Player(pygame.sprite.Sprite):
         self.velocity.y = max(-self.max_vertical_speed, min(self.max_vertical_speed, self.velocity.y))
 
         self.position += self.velocity * dt
-
-        horizontal_padding = 20
-        if self.position.x < horizontal_padding:
-            self.position.x = horizontal_padding
-            self.velocity.x = 0
-        elif self.position.x > self.world_width - horizontal_padding:
-            self.position.x = self.world_width - horizontal_padding
-            self.velocity.x = 0
-
-        if self.position.y < -120:
-            self.position.y = -120
-            self.velocity.y = 0
 
         if self.position.y >= self.ground_y and self.velocity.y > 0:
             self.reset_to_pad()

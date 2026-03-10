@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 import pygame
 from settings import SCREEN_HEIGHT, SCREEN_WIDTH, SOFT_YELLOW, OFF_WHITE, SOFT_CYAN
 from player import Player
@@ -6,22 +7,18 @@ from player import Player
 class Level:
     def __init__(self, surface):
         self.display_surface = surface
-        self.world_width = SCREEN_WIDTH
-        # Équipe : 5200 c'est la hauteur du niveau pour nos tests. On ajustera ça quand on fera le vrai level design.
-        self.world_height = 5200
-        self.ground_y = self.world_height - 90
+        self.ground_y = 0
 
         self.visible_sprites = pygame.sprite.Group()
         self.player = Player(
-            (self.world_width * 0.5, self.ground_y),
+            (0, self.ground_y),
             [self.visible_sprites],
-            self.world_width,
-            self.world_height,
             self.ground_y
         )
 
         self.font = pygame.font.Font(None, 32)
-        self.camera_y = self.world_height - SCREEN_HEIGHT
+        self.camera_x = self.player.position.x - SCREEN_WIDTH * 0.5
+        self.camera_y = self.player.position.y - SCREEN_HEIGHT * 0.65
         self.score = 0
         self.score_file = Path(__file__).with_name('score.txt')
         self.high_score = self.load_high_score()
@@ -38,36 +35,47 @@ class Level:
         return 0
 
     def update_camera(self):
-        # Équipe : Le 0.65 sert à décentrer la caméra pour voir plus loin vers le haut (là où on va).
-        target = self.player.position.y - SCREEN_HEIGHT * 0.65
-        max_camera = self.world_height - SCREEN_HEIGHT
-        self.camera_y = max(0, min(max_camera, target))
+        self.camera_x = self.player.position.x - SCREEN_WIDTH * 0.5
+        self.camera_y = self.player.position.y - SCREEN_HEIGHT * 0.65
+
+    def star_hash(self, col, row):
+        return ((col * 73856093) ^ (row * 19349663) ^ 0x9E3779B9) & 0xFFFFFFFF
 
     def draw_background(self):
-        # Équipe : Grosse opti ici, on ne calcule et on ne dessine que les étoiles qui sont visibles à l'écran pour économiser le CPU.
-        start_row = int(self.camera_y // 180)
-        end_row = int((self.camera_y + SCREEN_HEIGHT) // 180) + 2
+        # Équipe : étoiles procédurales, calculées seulement autour de la caméra (RAM quasi constante).
+        cell_size = 140
+        start_col = math.floor(self.camera_x / cell_size) - 1
+        end_col = math.floor((self.camera_x + SCREEN_WIDTH) / cell_size) + 1
+        start_row = math.floor(self.camera_y / cell_size) - 1
+        end_row = math.floor((self.camera_y + SCREEN_HEIGHT) / cell_size) + 1
 
-        for row in range(start_row, end_row):
-            world_y_1 = row * 180 + 40
-            world_y_2 = row * 180 + 100
-            x1 = 80 + (row * 7) % (self.world_width - 160)
-            x2 = 80 + (row * 13) % (self.world_width - 160)
+        for col in range(start_col, end_col + 1):
+            for row in range(start_row, end_row + 1):
+                hash_value = self.star_hash(col, row)
+                if hash_value % 100 >= 58:
+                    continue
 
-            screen_y_1 = int(world_y_1 - self.camera_y)
-            screen_y_2 = int(world_y_2 - self.camera_y)
+                x_offset = (hash_value >> 8) % cell_size
+                y_offset = (hash_value >> 16) % cell_size
+                world_x = col * cell_size + x_offset
+                world_y = row * cell_size + y_offset
+                screen_x = int(world_x - self.camera_x)
+                screen_y = int(world_y - self.camera_y)
 
-            if -5 <= screen_y_1 <= SCREEN_HEIGHT + 5:
-                pygame.draw.circle(self.display_surface, OFF_WHITE, (int(x1), screen_y_1), 2)
-            if -5 <= screen_y_2 <= SCREEN_HEIGHT + 5:
-                pygame.draw.circle(self.display_surface, OFF_WHITE, (int(x2), screen_y_2), 2)
+                radius = 1 + (hash_value % 2)
+                pygame.draw.circle(self.display_surface, OFF_WHITE, (screen_x, screen_y), radius)
 
-        launch_pad = pygame.Rect(int(SCREEN_WIDTH * 0.5 - 90), int(self.ground_y + 50 - self.camera_y), 180, 10)
+        launch_pad = pygame.Rect(
+            int(-90 - self.camera_x),
+            int(self.ground_y + 50 - self.camera_y),
+            180,
+            10,
+        )
         pygame.draw.rect(self.display_surface, SOFT_CYAN, launch_pad, border_radius=4)
 
     def draw_sprites(self):
         for sprite in self.visible_sprites:
-            screen_pos = (sprite.position.x, sprite.position.y - self.camera_y)
+            screen_pos = (sprite.position.x - self.camera_x, sprite.position.y - self.camera_y)
             screen_rect = sprite.image.get_rect(center=screen_pos)
             self.display_surface.blit(sprite.image, screen_rect)
 
