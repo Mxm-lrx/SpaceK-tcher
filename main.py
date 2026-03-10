@@ -1,6 +1,6 @@
 import sys
 import pygame
-from settings import *
+from settings import SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS
 from game import Game
 
 class Main:
@@ -9,7 +9,6 @@ class Main:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
-        # Équipe: si vous ajoutez menu/crédits, faites un gestionnaire de scènes au lieu de gonfler Main.
         self.game = Game(self.screen)
 
     def run(self):
@@ -19,9 +18,7 @@ class Main:
                     pygame.quit()
                     sys.exit()
 
-            self.screen.fill(CHARCOAL)
-
-            dt = self.clock.tick(FPS) / 1000
+            dt = self.clock.tick(FPS) / 1000.0
             self.game.run(dt)
             pygame.display.update()
 
