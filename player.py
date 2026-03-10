@@ -1,4 +1,5 @@
 import math
+import os
 import pygame
 from settings import SOFT_RED, OFF_WHITE
 
@@ -7,10 +8,19 @@ class Player(pygame.sprite.Sprite):
         super().__init__(groups)
         self.spawn_position = pygame.Vector2(pos)
         self.ground_y = ground_y
+        self.rocket_size = (56, 133)
 
-        self.base_image = pygame.Surface((26, 46), pygame.SRCALPHA)
-        pygame.draw.polygon(self.base_image, OFF_WHITE, [(13, 0), (26, 40), (0, 40)])
-        pygame.draw.rect(self.base_image, SOFT_RED, pygame.Rect(7, 32, 12, 12))
+        fallback_image = pygame.Surface((26, 46), pygame.SRCALPHA)
+        pygame.draw.polygon(fallback_image, OFF_WHITE, [(13, 0), (26, 40), (0, 40)])
+        pygame.draw.rect(fallback_image, SOFT_RED, pygame.Rect(7, 32, 12, 12))
+
+        self.rocket_ground_image = self._load_rocket_sprite('Fusee_NF.png', fallback_image)
+        self.rocket_flight_images = (
+            self._load_rocket_sprite('Fusee_M1.png', self.rocket_ground_image),
+            self._load_rocket_sprite('Fusee_M2.png', self.rocket_ground_image),
+        )
+
+        self.base_image = self.rocket_ground_image
 
         self.image = self.base_image
         self.rect = self.image.get_rect(center=pos)
@@ -36,6 +46,13 @@ class Player(pygame.sprite.Sprite):
         self.max_vertical_speed = 360.0
 
         self.launched = False
+
+    def _load_rocket_sprite(self, file_name, fallback_image):
+        sprite_path = os.path.join('assets', file_name)
+        if os.path.exists(sprite_path):
+            image = pygame.image.load(sprite_path).convert_alpha()
+            return pygame.transform.smoothscale(image, self.rocket_size)
+        return pygame.transform.smoothscale(fallback_image, self.rocket_size)
 
     def reset_to_pad(self):
         self.position.update(self.spawn_position)
@@ -91,6 +108,12 @@ class Player(pygame.sprite.Sprite):
             self.reset_to_pad()
 
     def update_sprite(self):
+        if not self.launched:
+            self.base_image = self.rocket_ground_image
+        else:
+            animation_frame = (pygame.time.get_ticks() // 200) % 2
+            self.base_image = self.rocket_flight_images[animation_frame]
+
         self.image = pygame.transform.rotozoom(self.base_image, self.angle, 1)
         self.rect = self.image.get_rect(center=self.position)
 
