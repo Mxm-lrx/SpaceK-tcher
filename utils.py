@@ -8,6 +8,7 @@ MISSING_TEXTURE_NAME = 'MissingTexture.jpg'
 
 
 def _load_surface(path):
+	# Tente de charger l'image, retourne None si elle est introuvable ou si une erreur se produit
 	try:
 		return pygame.image.load(path)
 	except (pygame.error, FileNotFoundError):
@@ -15,6 +16,7 @@ def _load_surface(path):
 
 
 def _fallback_checkerboard(size=(64, 64)):
+	# Crée une surface de remplacement avec un motif de damier pour indiquer une texture manquante
 	surface = pygame.Surface(size)
 	tile = max(8, min(size) // 4)
 	colors = ((255, 0, 255), (0, 0, 0))
@@ -26,6 +28,7 @@ def _fallback_checkerboard(size=(64, 64)):
 
 
 def _prepare_surface(surface, convert_alpha):
+	# Si la surface est None, retourne None. Sinon, convertit la surface pour une meilleure performance
 	if surface is None:
 		return None
 	if pygame.display.get_surface() is None:
@@ -36,6 +39,7 @@ def _prepare_surface(surface, convert_alpha):
 
 
 def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=None):
+	# Tente de charger la texture depuis le dossier des assets, utilise une texture de remplacement si elle est introuvable
 	texture_path = os.path.join(ASSETS_DIR, file_name)
 	surface = _load_surface(texture_path)
 
@@ -47,6 +51,7 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 		surface = fallback_surface if fallback_surface is not None else _fallback_checkerboard()
 
 	surface = _prepare_surface(surface, convert_alpha)
+	# Si scale_to est spécifié, redimensionne la surface à la taille souhaitée
 	if scale_to is not None:
 		surface = pygame.transform.smoothscale(surface, scale_to)
 	return surface
@@ -64,7 +69,7 @@ def import_folder(path: str) -> List[pygame.Surface]:
     for file_name in sorted(os.listdir(path)):
         full_path = os.path.join(path, file_name)
         
-        # Vérifie que ce soit un fichier (pas un dossier)
+        # Vérifie que les éléments du dossier soit uniquement des fichiers (pas un dossier)
         if os.path.isfile(full_path):
             try:
                 image_surf = pygame.image.load(full_path).convert_alpha()
