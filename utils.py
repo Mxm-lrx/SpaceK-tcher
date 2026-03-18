@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 ASSETS_DIR = 'assets'
 MISSING_TEXTURE_NAME = 'MissingTexture.jpg'
 
-
+# Cette fonction charge une image depuis le dossier assets, elle gère les erreurs de chargement et peut retourner une surface de remplacement si l'image est introuvable. Elle est utilisée dans level.py pour charger les textures des sprites.
 def _load_surface(path):
 	# Tente de charger l'image, retourne None si elle est introuvable ou si une erreur se produit
 	try:
@@ -15,6 +15,7 @@ def _load_surface(path):
 		return None
 
 
+# Cette fonction génère une surface de remplacement en damier, utilisée lorsque le chargement d'une texture échoue. Elle est appelée par load_texture() dans le cas où l'image ne peut pas être chargée.	
 def _fallback_checkerboard(size=(64, 64)):
 	# Crée une surface de remplacement avec un motif de damier pour indiquer une texture manquante
 	surface = pygame.Surface(size)
@@ -26,7 +27,7 @@ def _fallback_checkerboard(size=(64, 64)):
 			pygame.draw.rect(surface, colors[color_index], (x, y, tile, tile))
 	return surface
 
-
+# Cette fonction est la fonction principale pour charger une texture, elle utilise les fonctions précédentes pour gérer les erreurs et préparer la surface pour l'affichage. Elle est utilisée dans level.py pour charger les textures des sprites et peut être utilisée ailleurs dans le projet pour charger d'autres images.
 def _prepare_surface(surface, convert_alpha):
 	# Si la surface est None, retourne None. Sinon, convertit la surface pour une meilleure performance
 	if surface is None:
@@ -37,7 +38,7 @@ def _prepare_surface(surface, convert_alpha):
 		return surface.convert_alpha()
 	return surface.convert()
 
-
+# Cette fonction est la fonction publique pour charger une texture, elle gère les erreurs de chargement et peut retourner une surface de remplacement si l'image est introuvable. Elle est utilisée dans level.py pour charger les textures des sprites et peut être utilisée ailleurs dans le projet pour charger d'autres images.
 def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=None):
 	# Tente de charger la texture depuis le dossier des assets, utilise une texture de remplacement si elle est introuvable
 	texture_path = os.path.join(ASSETS_DIR, file_name)
