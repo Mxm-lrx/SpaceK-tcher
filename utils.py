@@ -1,5 +1,7 @@
 import os
 import pygame
+from typing import List
+
 
 ASSETS_DIR = 'assets'
 MISSING_TEXTURE_NAME = 'MissingTexture.jpg'
@@ -48,3 +50,9 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 	if scale_to is not None:
 		surface = pygame.transform.smoothscale(surface, scale_to)
 	return surface
+
+####################################################################################################
+
+def import_image(path: str) -> pygame.Surface:
+    # convert_alpha() : optimise l'image pour Pygame et gère la transparence
+    return pygame.image.load(path).convert_alpha()
