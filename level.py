@@ -5,6 +5,7 @@ from settings import SCREEN_HEIGHT, SCREEN_WIDTH, SOFT_YELLOW, OFF_WHITE, SOFT_C
 from player import Player
 
 class Level:
+    # C'est la classe qui fait tout le travaille pour faire tourner le niveau, elle gère la caméra, les étoiles de fond, le score, etc. C'est un peu la classe centrale du projet.
     def __init__(self, surface):
         self.display_surface = surface
         self.ground_y = 0
@@ -22,6 +23,7 @@ class Level:
         self.score = 0
         self.score_file = Path(__file__).with_name('score.txt')
         self.high_score = self.load_high_score()
+        self.px_to_meter = 1.0  # Ajuste cette valeur selon l'échelle réelle du jeu (1 px = 1 m par défaut)
 
     def load_high_score(self):
         # Équipe : On sauvegarde le meilleur score dans un bête fichier texte pour l'instant, c'est amplement suffisant, pas besoin de base de données.
@@ -34,10 +36,12 @@ class Level:
         self.score_file.write_text('0', encoding='utf-8')
         return 0
 
+    # C'est la fonction qui met à jour la position de la caméra pour suivre le joueur, elle est appelée à chaque frame depuis run()
     def update_camera(self):
         self.camera_x = self.player.position.x - SCREEN_WIDTH * 0.5
         self.camera_y = self.player.position.y - SCREEN_HEIGHT * 0.65
 
+    # C'est la fonction qui génère une étoile à partir de coordonnées de cellule, elle utilise une fonction de hachage pour créer une distribution pseudo-aléatoire d'étoiles qui reste constante à chaque exécution du jeu.
     def star_hash(self, col, row):
         return ((col * 73856093) ^ (row * 19349663) ^ 0x9E3779B9) & 0xFFFFFFFF
 
@@ -73,18 +77,35 @@ class Level:
         )
         pygame.draw.rect(self.display_surface, SOFT_CYAN, launch_pad, border_radius=4)
 
+    # C'est la fonction qui dessine tous les sprites à l'écran, elle est appelée à chaque frame depuis run()
     def draw_sprites(self):
         for sprite in self.visible_sprites:
             screen_pos = (sprite.position.x - self.camera_x, sprite.position.y - self.camera_y)
             screen_rect = sprite.image.get_rect(center=screen_pos)
             self.display_surface.blit(sprite.image, screen_rect)
 
+    #C'est la fonction qui dessine le score et les instructions à l'écran, elle est appelée à chaque frame depuis run()
     def draw_hud(self):
         score_text = self.font.render(f"Score : {self.score}   Meilleur score : {self.high_score}", True, SOFT_YELLOW)
         controls_text = self.font.render("Appuie sur ESPACE pour décoller | Gauche/Droite pour diriger", True, SOFT_YELLOW)
+        speed_text = self.font.render(f"Vitesse : {self.get_speed_kmh():.1f} km/h", True, SOFT_YELLOW)
+
         self.display_surface.blit(score_text, (20, 18))
         self.display_surface.blit(controls_text, (20, 48))
+        self.display_surface.blit(speed_text, (20, 78))
 
+    def get_speed_kmh(self):
+        velocity = getattr(self.player, "velocity", None)
+        if velocity is None:
+            return 0.0
+
+        vx = getattr(velocity, "x", 0.0)
+        vy = getattr(velocity, "y", 0.0)
+        speed_px_s = math.hypot(vx, vy)
+        speed_m_s = speed_px_s * self.px_to_meter
+        return speed_m_s * 3.6
+
+    # C'est la fonction qui met à jour le niveau, elle est appelée à chaque frame depuis run() dans game.py
     def run(self, dt):
         self.visible_sprites.update(dt)
         self.update_camera()
