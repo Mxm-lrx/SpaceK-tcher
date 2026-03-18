@@ -1,1 +1,2 @@
+# On défini la version de Pygame nécessaire pour exécuter le jeu
 pygame==2.6.1
