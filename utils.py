@@ -1,6 +1,6 @@
 import os
 import pygame
-from typing import List
+from typing import List, Tuple, Optional
 
 
 ASSETS_DIR = 'assets'
@@ -58,11 +58,21 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 
 ####################################################################################################
 
-def import_image(path: str) -> pygame.Surface:
+def import_image(path: str):
+    """Importe une image depuis le chemin spécifié et la convertit pour Pygame, en gérant la transparence. 
+	Si l'image ne peut pas être chargée, retourne une surface de remplacement avec un motif de damier.
+	Si le fichier est introuvable, une texture de remplacement est utilisée à la place.
+	Cependant, si la texture de remplacement est également introuvable, une surface de damier est créée
+	pour indiquer une texture manquante. Cela garantit que le programme peut continuer à fonctionner même 
+	si certaines ressources sont manquantes.
+	Potentiellement, cela peut être amélioré en ajoutant des logs pour signaler les fichiers manquants.
+	Contrepartie de la fonction load_texture() qui gère les cas de fichiers manquants et de textures de remplacement.
+	Le patrimoine de cette fonction est conservé pour les cas où une image doit être chargée sans les fonctionnalités 
+	supplémentaires de load_texture()."""
     # convert_alpha() : optimise l'image pour Pygame et gère la transparence
     return pygame.image.load(path).convert_alpha()
 
-def import_folder(path: str, scale_to: Optional[Tuple[int, int]] = None) -> List[pygame.Surface]:
+def import_folder(path: str, scale_to: Optional[Tuple[int, int]] = None):
 	# Importe toutes les images d'un dossier, les convertit pour Pygame et les redimensionne si nécessaire
     surface_list = []
     
