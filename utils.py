@@ -49,3 +49,4 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 	if scale_to is not None:
 		surface = pygame.transform.smoothscale(surface, scale_to)
 	return surface
+
