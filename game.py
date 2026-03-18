@@ -37,6 +37,7 @@ class Game:
         if keys[pygame.K_SPACE]:
             self.state = 'playing'
 
+    # C'est la fonction qui permet de faire tourner le jeu, elle est appelée à chaque frame depuis main.py
     def run(self, dt):
         self.screen.fill(BG_COLOR)
         

@@ -4,7 +4,7 @@ import pygame
 ASSETS_DIR = 'assets'
 MISSING_TEXTURE_NAME = 'MissingTexture.jpg'
 
-
+# Cette fonction charge une image depuis le dossier assets, elle gère les erreurs de chargement et peut retourner une surface de remplacement si l'image est introuvable. Elle est utilisée dans level.py pour charger les textures des sprites.
 def _load_surface(path):
 	try:
 		return pygame.image.load(path)
@@ -12,6 +12,7 @@ def _load_surface(path):
 		return None
 
 
+# Cette fonction génère une surface de remplacement en damier, utilisée lorsque le chargement d'une texture échoue. Elle est appelée par load_texture() dans le cas où l'image ne peut pas être chargée.	
 def _fallback_checkerboard(size=(64, 64)):
 	surface = pygame.Surface(size)
 	tile = max(8, min(size) // 4)
@@ -22,7 +23,7 @@ def _fallback_checkerboard(size=(64, 64)):
 			pygame.draw.rect(surface, colors[color_index], (x, y, tile, tile))
 	return surface
 
-
+# Cette fonction est la fonction principale pour charger une texture, elle utilise les fonctions précédentes pour gérer les erreurs et préparer la surface pour l'affichage. Elle est utilisée dans level.py pour charger les textures des sprites et peut être utilisée ailleurs dans le projet pour charger d'autres images.
 def _prepare_surface(surface, convert_alpha):
 	if surface is None:
 		return None
@@ -32,7 +33,7 @@ def _prepare_surface(surface, convert_alpha):
 		return surface.convert_alpha()
 	return surface.convert()
 
-
+# Cette fonction est la fonction publique pour charger une texture, elle gère les erreurs de chargement et peut retourner une surface de remplacement si l'image est introuvable. Elle est utilisée dans level.py pour charger les textures des sprites et peut être utilisée ailleurs dans le projet pour charger d'autres images.
 def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=None):
 	texture_path = os.path.join(ASSETS_DIR, file_name)
 	surface = _load_surface(texture_path)
@@ -48,3 +49,4 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 	if scale_to is not None:
 		surface = pygame.transform.smoothscale(surface, scale_to)
 	return surface
+
