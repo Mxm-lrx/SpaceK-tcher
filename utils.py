@@ -58,7 +58,7 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 
 ####################################################################################################
 
-def import_image(path: str):
+def import_image(path: str) -> pygame.Surface:
     # convert_alpha() : optimise l'image pour Pygame et gère la transparence
     return pygame.image.load(path).convert_alpha()
 
