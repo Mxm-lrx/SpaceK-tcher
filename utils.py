@@ -62,20 +62,25 @@ def import_image(path: str) -> pygame.Surface:
     # convert_alpha() : optimise l'image pour Pygame et gère la transparence
     return pygame.image.load(path).convert_alpha()
 
-def import_folder(path: str) -> List[pygame.Surface]:
+def import_folder(path: str, scale_to: Optional[Tuple[int, int]] = None) -> List[pygame.Surface]:
+	# Importe toutes les images d'un dossier, les convertit pour Pygame et les redimensionne si nécessaire
     surface_list = []
     
-    # sorted() : permet de forcer le bon ordre du chargement des frames d'animation (ex: 0.png, 1.png...)
+    # Force l'ordre de chargement des fichiers (ex: 0.png, 1.png, 2.png...) pour les animations
     for file_name in sorted(os.listdir(path)):
         full_path = os.path.join(path, file_name)
-        
-        # Vérifie que les éléments du dossier soit uniquement des fichiers (pas un dossier)
+
+    # Vérifie que le chemin correspond à un fichier (et pas à un dossier)    
         if os.path.isfile(full_path):
             try:
                 image_surf = pygame.image.load(full_path).convert_alpha()
+
+                if scale_to is not None:
+                    image_surf = pygame.transform.smoothscale(image_surf, scale_to)
+                
                 surface_list.append(image_surf)
+			# Ignore les fichiers qui ne sont pas des images
             except pygame.error:
-                # Ignore les fichiers qui ne sont pas des images
                 pass
                 
     return surface_list
