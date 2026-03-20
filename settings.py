@@ -7,6 +7,16 @@ FPS = 60
 # On définit le titre de la fenêtre du jeu
 TITLE = "SpaceK'tcher"
 
+# Dictionnaire des déchets par poubelle
+# Poubelle Verte : Verre
+# Poubelle Jaune : Plastique, carton, métal
+# Poubelle Grise/Bleue : Ordures ménagères (non recyclables)
+TRASH_CATEGORIES = {
+    "Verte": ["BouteilleVerre"],
+    "Jaune": ["canette"],
+    "Bleue": ["Yaourt", "banane"]
+}
+
 # On définit les couleurs utilisées dans le jeu (en format RGB)
 OFF_WHITE = (250, 250, 250)		#Blanc cassé
 DEEP_DARK = (30, 30, 35)		#Gris sombre

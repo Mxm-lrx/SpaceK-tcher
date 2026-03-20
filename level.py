@@ -6,6 +6,7 @@ from settings import SCREEN_HEIGHT, SCREEN_WIDTH, SOFT_YELLOW, OFF_WHITE, SOFT_C
 from player import Player
 
 class FloatingObstacle(pygame.sprite.Sprite):
+    obstacle_type = "base"
     def __init__(self, position, image, groups):
         super().__init__(groups)
         scale = random.uniform(0.18, 0.42)  # plus petit qu'avant
@@ -33,6 +34,25 @@ class FloatingObstacle(pygame.sprite.Sprite):
         self.position += (self.base_velocity + wobble) * dt
 
 
+
+class DebrisItem(FloatingObstacle):
+    obstacle_type = "debris"
+    def __init__(self, position, image, groups):
+        super().__init__(position, image, groups)
+        w, h = image.get_size()
+        scale = min(80.0 / max(1, w), 80.0 / max(1, h)) 
+        self.image = pygame.transform.smoothscale(image, (max(12, int(w * scale)), max(12, int(h * scale))))
+        self.collision_radius = max(10, min(self.image.get_width(), self.image.get_height()) * 0.33)
+
+class DechetItem(FloatingObstacle):
+    obstacle_type = "dechet"
+    def __init__(self, position, image, groups):
+        super().__init__(position, image, groups)
+        w, h = image.get_size()
+        scale = min(40.0 / max(1, w), 40.0 / max(1, h)) 
+        self.image = pygame.transform.smoothscale(image, (max(12, int(w * scale)), max(12, int(h * scale))))
+        self.collision_radius = max(10, min(self.image.get_width(), self.image.get_height()) * 0.33)
+
 class Level:
     # C'est la classe qui fait tout le travaille pour faire tourner le niveau, elle gère la caméra, les étoiles de fond, le score, etc. C'est un peu la classe centrale du projet.
     def __init__(self, surface):
@@ -57,8 +77,8 @@ class Level:
         self.assets_dir = Path(__file__).with_name("assets")
         self.obstacle_images = self.load_obstacle_images()
         self.obstacles = pygame.sprite.Group()
-        self.max_obstacles = 18
-        self.obstacle_spawn_interval = 0.35
+        self.max_obstacles = 45
+        self.obstacle_spawn_interval = 0.15
         self.obstacle_spawn_timer = 0.0
         self.collision_cooldown = 0.0
 
@@ -146,52 +166,64 @@ class Level:
         return speed_m_s * 3.6
 
     def load_obstacle_images(self):
-        if not self.assets_dir.exists():
-            return []
-
-        # On ne prend QUE les images dans le dossier "Déchets" (ou "Dechets")
-        debris_dirs = [
-            p for p in self.assets_dir.rglob("*")
-            if p.is_dir() and p.name.lower() in ("déchets", "dechets")
-        ]
-        if not debris_dirs:
-            return []
-
+        images = {"debris": [], "dechet": []}
+        if not self.assets_dir.exists(): return images
         allowed_ext = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-        images = []
-
-        for debris_dir in debris_dirs:
-            for path in sorted(debris_dir.rglob("*")):
-                if path.suffix.lower() not in allowed_ext:
-                    continue
+        
+        for p in self.assets_dir.rglob("*"):
+            if not p.is_dir(): continue
+            name_lower = p.name.lower()
+            if name_lower in ("déchets", "dechets"):
+                cat = "dechet"
+            elif name_lower in ("débris", "debris"):
+                cat = "debris"
+            else:
+                continue
+                
+            for path in sorted(p.rglob("*")):
+                if path.suffix.lower() not in allowed_ext: continue
                 try:
-                    images.append(pygame.image.load(path.as_posix()).convert_alpha())
-                except pygame.error:
-                    continue
-
+                    images[cat].append((path.stem, pygame.image.load(path.as_posix()).convert_alpha()))
+                except pygame.error: continue
         return images
 
     def spawn_obstacle(self):
-        if not self.obstacle_images:
-            return
-
+        all_imgs = self.obstacle_images.get("debris", []) + self.obstacle_images.get("dechet", [])
+        if not all_imgs: return
+        
+        is_debris = random.random() < 0.4
+        choices = self.obstacle_images.get("debris", []) if is_debris else self.obstacle_images.get("dechet", [])
+        if not choices: choices = all_imgs
+        
+        item_name, image = random.choice(choices)
+        
         cam_center_x = self.camera_x + SCREEN_WIDTH * 0.5
         cam_center_y = self.camera_y + SCREEN_HEIGHT * 0.5
-        spawn_radius_x = SCREEN_WIDTH * 0.9
-        spawn_radius_y = SCREEN_HEIGHT * 0.9
-
-        x, y = cam_center_x, cam_center_y
-        for _ in range(8):
-            x = random.uniform(cam_center_x - spawn_radius_x, cam_center_x + spawn_radius_x)
-            y = random.uniform(cam_center_y - spawn_radius_y, cam_center_y + spawn_radius_y)
-            if pygame.Vector2(x, y).distance_to(self.player.position) > 180:
-                break
-
-        image = random.choice(self.obstacle_images)
-        FloatingObstacle((x, y), image, [self.visible_sprites, self.obstacles])
+        spawn_radius_x = SCREEN_WIDTH * 1.2
+        spawn_radius_y = SCREEN_HEIGHT * 1.2
+        
+        # Apparition majoritairement au-dessus car la fusée monte (65%)
+        rand_val = random.random()
+        if rand_val < 0.65:
+            # Apparition au-dessus (Haut)
+            x = self.camera_x + random.uniform(-200, SCREEN_WIDTH + 200)
+            y = self.camera_y - random.uniform(100, 1000)
+        elif rand_val < 0.85:
+            # Apparition sur les côtés (Gauche / Droite)
+            base_x = self.camera_x - random.uniform(100, 400) if random.random() < 0.5 else self.camera_x + SCREEN_WIDTH + random.uniform(100, 400)
+            x = base_x
+            y = self.camera_y + random.uniform(-500, SCREEN_HEIGHT + 200)
+        else:
+            # Apparition en-dessous (Bas)
+            x = self.camera_x + random.uniform(-200, SCREEN_WIDTH + 200)
+            y = self.camera_y + SCREEN_HEIGHT + random.uniform(100, 600)
+            
+        cls = DebrisItem if is_debris else DechetItem
+        obj = cls((x, y), image, [self.visible_sprites, self.obstacles])
+        obj.item_name = item_name
 
     def update_obstacles(self, dt):
-        if not self.obstacle_images:
+        if not self.obstacle_images.get("debris") and not self.obstacle_images.get("dechet"):
             return
 
         self.obstacle_spawn_timer += dt
@@ -202,14 +234,12 @@ class Level:
             self.obstacle_spawn_timer -= self.obstacle_spawn_interval
             self.spawn_obstacle()
 
-        cam_center = pygame.Vector2(
-            self.camera_x + SCREEN_WIDTH * 0.5,
-            self.camera_y + SCREEN_HEIGHT * 0.5,
-        )
-        max_dist = max(SCREEN_WIDTH, SCREEN_HEIGHT) * 1.8
-
         for obstacle in list(self.obstacles):
-            if obstacle.position.distance_to(cam_center) > max_dist:
+            # Nettoie les obstacles trop éloignés (notamment trop bas puisque la fusée monte)
+            if (obstacle.position.x < self.camera_x - SCREEN_WIDTH) or \
+               (obstacle.position.x > self.camera_x + SCREEN_WIDTH * 2) or \
+               (obstacle.position.y > self.camera_y + SCREEN_HEIGHT * 1.8) or \
+               (obstacle.position.y < self.camera_y - SCREEN_HEIGHT * 2.5):
                 obstacle.kill()
             elif random.random() < 0.002:
                 obstacle.base_velocity.rotate_ip(random.uniform(-35, 35))
@@ -219,7 +249,7 @@ class Level:
         vy = getattr(velocity, "y", 0.0) if velocity is not None else 0.0
         return self.player.position.y < self.ground_y - 5 or abs(vy) > 15
 
-    def handle_obstacle_collisions(self, dt):
+    def handle_obstacle_collisions(self, dt, game_instance):
         if not self.obstacles:
             return
 
@@ -235,25 +265,33 @@ class Level:
             hit_dist = player_radius + obstacle.collision_radius
 
             if delta.length_squared() <= hit_dist * hit_dist:
-                if self.collision_cooldown <= 0.0:
-                    self.collision_cooldown = 0.45
-                    self.score = max(0, self.score - 25)
-
-                    velocity = getattr(self.player, "velocity", None)
-                    if velocity is not None:
-                        if delta.length_squared() == 0:
-                            delta = pygame.Vector2(1, 0)
-                        knockback = delta.normalize() * 150
-                        velocity.x = velocity.x * 0.55 + knockback.x
-                        velocity.y = velocity.y * 0.55 + knockback.y
-                break
+                if obstacle.obstacle_type == "debris":
+                    import utils
+                    img = utils.load_texture("explode.png")
+                    w, h = self.player.image.get_size()
+                    self.player.image = pygame.transform.smoothscale(img, (w, h))
+                    if len(game_instance.collected_trash) > 0:
+                        game_instance.change_state("sorting_level")
+                    else:
+                        game_instance.change_state("game_over")
+                    break
+                elif obstacle.obstacle_type == "dechet":
+                    game_instance.collected_trash.append((getattr(obstacle, "item_name", "Inconnu"), obstacle.image.copy()))
+                    game_instance.score += 10
+                    obstacle.kill()
+                    # on ne break pas, on continue la collecte !
 
     # C'est la fonction qui met à jour le niveau, elle est appelée à chaque frame depuis run() dans game.py
-    def run(self, dt):
+    def run(self, dt, game_instance=None):
         self.visible_sprites.update(dt)
         self.update_camera()
         self.update_obstacles(dt)
-        self.handle_obstacle_collisions(dt)
+        if game_instance:
+            self.handle_obstacle_collisions(dt, game_instance)
+        # Met à jour le HUD avec le score
+        if game_instance:
+            self.score = game_instance.score
+            self.high_score = game_instance.high_score
         self.draw_background()
         self.draw_sprites()
         self.draw_hud()

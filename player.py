@@ -48,20 +48,20 @@ class Player(pygame.sprite.Sprite):
         self.angular_velocity = 0.0
 
         # Toutes les variables en dessous servent à régler la conduite de la fusée (poids, poussée, etc.). À vous de jouer pour l'équilibrage !
-        self.launch_impulse = -500.0
-        self.gravity = 300.0
-        self.thrust_power = 600.0
-        self.linear_drag = 0.55
+        self.launch_impulse = -250.0
+        self.gravity = 150.0
+        self.thrust_power = 250.0
+        self.linear_drag = 1.2
 
         # Ces variables contrôlent la rotation de la fusée en vol (plus les valeurs sont élevées, plus la fusée tourne vite et se stabilise rapidement)
-        self.turn_acceleration = 400.0
+        self.turn_acceleration = 400
         self.turn_damping = 7.0
-        self.max_turn_speed = 120.0
+        self.max_turn_speed = 140.0
         self.max_tilt = 65.0
 
         # Ces variables limitent la vitesse maximale de la fusée pour éviter les comportements incontrôlables
-        self.max_horizontal_speed = 260.0
-        self.max_vertical_speed = 360.0
+        self.max_horizontal_speed = 150.0
+        self.max_vertical_speed = 180.0
 
         # On initialise l'état de lancement de la fusée (au départ, elle n'est pas lancée)
         self.launched = False
@@ -132,14 +132,20 @@ class Player(pygame.sprite.Sprite):
         radians = math.radians(self.angle)
         forward = pygame.Vector2(-math.sin(radians), -math.cos(radians))
         
+        # Gestion du boost (Touche Z)
+        keys = pygame.key.get_pressed()
+        curr_boost = 3.0 if keys[pygame.K_z] else 1.0
+
         # L'accélération est la somme de la gravité (qui tire vers le bas) et de la poussée (qui pousse dans la direction de la fusée)
-        acceleration = pygame.Vector2(0, self.gravity) + forward * self.thrust_power
+        acceleration = pygame.Vector2(0, self.gravity) + forward * (self.thrust_power * curr_boost)
         self.velocity += acceleration * dt
         self.velocity *= (1.0 - self.linear_drag * dt)
 
         # On limite la vitesse de la fusée pour éviter les comportements incontrôlables à haute vitesse
-        self.velocity.x = max(-self.max_horizontal_speed, min(self.max_horizontal_speed, self.velocity.x))
-        self.velocity.y = max(-self.max_vertical_speed, min(self.max_vertical_speed, self.velocity.y))
+        cur_max_h = self.max_horizontal_speed * curr_boost
+        cur_max_v = self.max_vertical_speed * curr_boost
+        self.velocity.x = max(-cur_max_h, min(cur_max_h, self.velocity.x))
+        self.velocity.y = max(-cur_max_v, min(cur_max_v, self.velocity.y))
 
         # On met à jour la position de la fusée en fonction de sa vitesse
         self.position += self.velocity * dt

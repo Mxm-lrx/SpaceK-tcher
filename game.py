@@ -1,48 +1,92 @@
 import pygame
+import os
 from settings import BG_COLOR, SCREEN_WIDTH, SCREEN_HEIGHT, SOFT_YELLOW
 from level import Level
+from sorting_level import SortingLevel
 from utils import load_texture
 
 class Game:
     def __init__(self, screen):
         self.screen = screen
-        # Équipe : C'est ici qu'on listera tous nos niveaux plus tard (Level2, Level3...). Pour l'instant on n'en a qu'un seul de prêt.
         self.levels = [Level(self.screen)]
         self.current_level_index = 0
 
-        # Équipe : Gestion des états du jeu (menu principal vs niveau en cours)
         self.state = 'menu'
+        self.score = 0
+        self.collected_trash = []
+        self.high_score = self.load_high_score()
 
-        # Équipe : Initialisation des éléments graphiques du menu
         self.font = pygame.font.Font(None, 48)
         self.logo = load_texture('MissingTexture.jpg', scale_to=(350, 350))
+        self.sorting_scene = None
+
+    def load_high_score(self):
+        if os.path.exists('score.txt'):
+            with open('score.txt', 'r') as f:
+                try:
+                    return int(f.read())
+                except ValueError:
+                    return 0
+        return 0
+
+    def save_high_score(self):
+        if self.score > self.high_score:
+            self.high_score = self.score
+            with open('score.txt', 'w') as f:
+                f.write(str(self.high_score))
+
+    def change_state(self, new_state):
+        self.state = new_state
+        if new_state == 'game_over':
+            self.save_high_score()
+        elif new_state == 'sorting_level':
+            self.sorting_scene = SortingLevel(self.screen, self.collected_trash[:])
+        elif new_state == 'menu':
+            self.save_high_score()
 
     @property
     def current_level(self):
         return self.levels[self.current_level_index]
 
     def draw_menu(self):
-        # Équipe : Affichage du logo au centre de l'écran s'il est trouvé
         logo_rect = self.logo.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
         self.screen.blit(self.logo, logo_rect)
 
-        # Équipe : Affichage de l'instruction pour lancer la partie
-        text_surf = self.font.render("Appuie sur ESPACE pour Jouer", True, SOFT_YELLOW)
+        text_surf = self.font.render('Appuie sur ESPACE pour Jouer', True, SOFT_YELLOW)
         text_rect = text_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 180))
         self.screen.blit(text_surf, text_rect)
 
+        hs_surf = self.font.render(f'High Score: {self.high_score}', True, (255, 255, 255))
+        self.screen.blit(hs_surf, (10, 10))
+
+    def draw_game_over(self):
+        go_surf = self.font.render(f'GAME OVER - Score : {self.score} - Espace pour Menu', True, (255, 50, 50))
+        self.screen.blit(go_surf, (SCREEN_WIDTH//2 - go_surf.get_width()//2, SCREEN_HEIGHT//2))
+
     def handle_menu_input(self):
-        # Équipe : Transition vers le jeu quand on appuie sur ESPACE
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
-            self.state = 'playing'
+            self.score = 0
+            self.collected_trash.clear()
+            self.levels = [Level(self.screen)]
+            self.change_state('playing')
 
-    # C'est la fonction qui permet de faire tourner le jeu, elle est appelée à chaque frame depuis main.py
+    def handle_game_over_input(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            self.change_state('menu')
+
     def run(self, dt):
         self.screen.fill(BG_COLOR)
-        
+
         if self.state == 'menu':
             self.handle_menu_input()
             self.draw_menu()
-        else:
-            self.current_level.run(dt)
+        elif self.state == 'playing':
+            self.current_level.run(dt, self)
+        elif self.state == 'game_over':
+            self.draw_game_over()
+            self.handle_game_over_input()
+        elif self.state == 'sorting_level':
+            if self.sorting_scene:
+                self.sorting_scene.run(dt, self)
