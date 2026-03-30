@@ -9,7 +9,7 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         self.levels = [
-            Level(self.screen, level_type='debris', end_y=-5000),
+            Level(self.screen, level_type='debris', end_y=-8000),
             Level(self.screen, level_type='mixed')
         ]
         self.current_level_index = 0
@@ -72,7 +72,7 @@ class Game:
             self.score = 0
             self.collected_trash.clear()
             self.levels = [
-                Level(self.screen, level_type='debris', end_y=-5000),
+                Level(self.screen, level_type='debris', end_y=-8000),
                 Level(self.screen, level_type='mixed')
             ]
             self.current_level_index = 0
@@ -84,9 +84,11 @@ class Game:
             self.change_state('menu')
 
     def run(self, dt):
-        self.screen.fill(BG_COLOR)
+        # Ne pas remplir l'écran ici - le niveau gère maintenant le dégradé du ciel
+        # self.screen.fill(BG_COLOR)
 
         if self.state == 'menu':
+            self.screen.fill(BG_COLOR)
             self.handle_menu_input()
             self.draw_menu()
         elif self.state == 'playing':

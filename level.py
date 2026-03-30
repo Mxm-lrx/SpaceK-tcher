@@ -86,15 +86,32 @@ class Level:
         self.obstacle_images = self.load_obstacle_images()
         self.obstacles = pygame.sprite.Group()
         
+        # Charger Sol.png pour la phase de décollage
+        sol_path = self.assets_dir / "Sol.png"
+        self.ground_image = None
+        if sol_path.exists():
+            try:
+                self.ground_image = pygame.image.load(sol_path.as_posix()).convert_alpha()
+            except pygame.error:
+                pass
+        
         if self.level_type == 'debris':
-            self.max_obstacles = 90
-            self.obstacle_spawn_interval = 0.05
+            # Level 1 première phase : moins de débris pour être plus facile
+            self.max_obstacles = 60
+            self.obstacle_spawn_interval = 0.10
         else:
             self.max_obstacles = 45
             self.obstacle_spawn_interval = 0.15
             
         self.obstacle_spawn_timer = 0.0
         self.collision_cooldown = 0.0
+        
+        # Limite d'atmosphère : pas de débris en-dessous de cette altitude (Y négatif en montée)
+        # En Y=-4000, on est en atmosphère, pas de débris générés
+        if self.level_type == 'debris':
+            self.atmosphere_altitude = -4000  # Y du début de l'atmosphère (l'espace)
+        else:
+            self.atmosphere_altitude = -5000  # Niveau 2 : atmosphère plus haute
 
         for _ in range(min(8, self.max_obstacles)):
             self.spawn_obstacle()
@@ -120,28 +137,74 @@ class Level:
         return ((col * 73856093) ^ (row * 19349663) ^ 0x9E3779B9) & 0xFFFFFFFF
 
     def draw_background(self):
+        # Gradient du ciel bleu au ciel noir (espace) basé sur l'altitude du joueur
+        player_y = self.player.position.y
+        
+        # Transition smooth du bleu vers le noir
+        # À Y=0 (sol): bleu (135, 206, 235)
+        # À atmosphere_altitude: noir (20, 20, 40)
+        if self.level_type == 'debris':
+            sky_blue = (135, 206, 235)  # Ciel bleu classique
+            atmosphere_start = 0  # Début du dégradé au sol
+        else:
+            sky_blue = (100, 160, 240)  # Bleu doux
+            atmosphere_start = -1000
+        
+        space_black = (20, 20, 40)  # Noir de l'espace
+        
+        # Calcul de la transition (0.0 = bleu pur, 1.0 = noir pur)
+        transition_range = self.atmosphere_altitude - atmosphere_start
+        if transition_range == 0:
+            transition = 0.0 if player_y > self.atmosphere_altitude else 1.0
+        else:
+            transition = max(0.0, min(1.0, (player_y - atmosphere_start) / transition_range))
+        
+        # Interpolation linéaire entre ciel bleu et noir de l'espace
+        bg_color = (
+            int(sky_blue[0] + (space_black[0] - sky_blue[0]) * transition),
+            int(sky_blue[1] + (space_black[1] - sky_blue[1]) * transition),
+            int(sky_blue[2] + (space_black[2] - sky_blue[2]) * transition),
+        )
+        self.display_surface.fill(bg_color)
+        
+        # Afficher le sol (Sol.png) s'il existe et si on est en phase de décollage
+        if self.ground_image and self.player.position.y > self.atmosphere_altitude:
+            ground_width, ground_height = self.ground_image.get_size()
+            # Position du sol au ground_y, tile horizontalement avec la caméra
+            screen_ground_y = int(self.ground_y - self.camera_y)
+            
+            # Boucle de tiling horizontal
+            x_offset = int(self.camera_x) % ground_width
+            screen_x = -x_offset
+            while screen_x < SCREEN_WIDTH:
+                screen_rect = self.ground_image.get_rect(topleft=(screen_x, screen_ground_y))
+                self.display_surface.blit(self.ground_image, screen_rect)
+                screen_x += ground_width
+        
         # Équipe : étoiles procédurales, calculées seulement autour de la caméra (RAM quasi constante).
-        cell_size = 140
-        start_col = math.floor(self.camera_x / cell_size) - 1
-        end_col = math.floor((self.camera_x + SCREEN_WIDTH) / cell_size) + 1
-        start_row = math.floor(self.camera_y / cell_size) - 1
-        end_row = math.floor((self.camera_y + SCREEN_HEIGHT) / cell_size) + 1
+        # Les étoiles apparaissent quand transition > 0.3 (environ -1400 pour le niveau 1)
+        if transition > 0.3:
+            cell_size = 140
+            start_col = math.floor(self.camera_x / cell_size) - 1
+            end_col = math.floor((self.camera_x + SCREEN_WIDTH) / cell_size) + 1
+            start_row = math.floor(self.camera_y / cell_size) - 1
+            end_row = math.floor((self.camera_y + SCREEN_HEIGHT) / cell_size) + 1
 
-        for col in range(start_col, end_col + 1):
-            for row in range(start_row, end_row + 1):
-                hash_value = self.star_hash(col, row)
-                if hash_value % 100 >= 58:
-                    continue
+            for col in range(start_col, end_col + 1):
+                for row in range(start_row, end_row + 1):
+                    hash_value = self.star_hash(col, row)
+                    if hash_value % 100 >= 58:
+                        continue
 
-                x_offset = (hash_value >> 8) % cell_size
-                y_offset = (hash_value >> 16) % cell_size
-                world_x = col * cell_size + x_offset
-                world_y = row * cell_size + y_offset
-                screen_x = int(world_x - self.camera_x)
-                screen_y = int(world_y - self.camera_y)
+                    x_offset = (hash_value >> 8) % cell_size
+                    y_offset = (hash_value >> 16) % cell_size
+                    world_x = col * cell_size + x_offset
+                    world_y = row * cell_size + y_offset
+                    screen_x = int(world_x - self.camera_x)
+                    screen_y = int(world_y - self.camera_y)
 
-                radius = 1 + (hash_value % 2)
-                pygame.draw.circle(self.display_surface, OFF_WHITE, (screen_x, screen_y), radius)
+                    radius = 1 + (hash_value % 2)
+                    pygame.draw.circle(self.display_surface, OFF_WHITE, (screen_x, screen_y), radius)
 
         launch_pad = pygame.Rect(
             int(-90 - self.camera_x),
@@ -205,6 +268,10 @@ class Level:
         all_imgs = self.obstacle_images.get("debris", []) + self.obstacle_images.get("dechet", [])
         if not all_imgs: return
         
+        # Pas de débris une fois atteint l'atmosphère (Y <= atmosphere_altitude)
+        if self.player.position.y <= self.atmosphere_altitude:
+            return
+        
         if self.level_type == 'debris':
             is_debris = True
         else:
@@ -258,6 +325,9 @@ class Level:
                (obstacle.position.x > self.camera_x + SCREEN_WIDTH * 2) or \
                (obstacle.position.y > self.camera_y + SCREEN_HEIGHT * 1.8) or \
                (obstacle.position.y < self.camera_y - SCREEN_HEIGHT * 2.5):
+                obstacle.kill()
+            # Retire les débris une fois dans l'atmosphère
+            elif obstacle.obstacle_type == "debris" and self.player.position.y <= self.atmosphere_altitude:
                 obstacle.kill()
             elif random.random() < 0.002:
                 obstacle.base_velocity.rotate_ip(random.uniform(-35, 35))
