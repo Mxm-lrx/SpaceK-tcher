@@ -84,6 +84,10 @@ class SortingLevel:
         self.aiming = False
         self.start_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 4)
         
+        self.feedback_timer = 0
+        self.feedback_msg = ""
+        self.feedback_color = (255, 255, 255)
+        
         self.spawn_next_trash()
 
     def spawn_next_trash(self):

@@ -8,7 +8,10 @@ from utils import load_texture
 class Game:
     def __init__(self, screen):
         self.screen = screen
-        self.levels = [Level(self.screen)]
+        self.levels = [
+            Level(self.screen, level_type='debris', end_y=-5000),
+            Level(self.screen, level_type='mixed')
+        ]
         self.current_level_index = 0
 
         self.state = 'menu'
@@ -68,7 +71,11 @@ class Game:
         if keys[pygame.K_SPACE]:
             self.score = 0
             self.collected_trash.clear()
-            self.levels = [Level(self.screen)]
+            self.levels = [
+                Level(self.screen, level_type='debris', end_y=-5000),
+                Level(self.screen, level_type='mixed')
+            ]
+            self.current_level_index = 0
             self.change_state('playing')
 
     def handle_game_over_input(self):
@@ -83,7 +90,29 @@ class Game:
             self.handle_menu_input()
             self.draw_menu()
         elif self.state == 'playing':
-            self.current_level.run(dt, self)
+            level_status = self.current_level.run(dt, self)
+            if level_status == "completed":
+                # Keep track of old player state
+                old_player = self.current_level.player
+                pos = (old_player.position.x, old_player.position.y)
+                vel = (old_player.velocity.x, old_player.velocity.y)
+                
+                self.current_level_index += 1
+                if self.current_level_index >= len(self.levels):
+                    # Finished all levels
+                    if len(self.collected_trash) > 0:
+                        self.change_state("sorting_level")
+                    else:
+                        self.change_state("game_over")
+                else:
+                    # Initialize the next level right now manually to pass player state
+                    next_level = self.levels[self.current_level_index]
+                    # We actually need to re-initialize it to pass the params, or just update its player.
+                    # It's cleaner to re-instantiate it here:
+                    level_type = next_level.level_type
+                    end_y = next_level.end_y
+                    self.levels[self.current_level_index] = Level(self.screen, level_type=level_type, end_y=end_y, player_start_pos=pos, player_velocity=vel)
+
         elif self.state == 'game_over':
             self.draw_game_over()
             self.handle_game_over_input()

@@ -55,16 +55,24 @@ class DechetItem(FloatingObstacle):
 
 class Level:
     # C'est la classe qui fait tout le travaille pour faire tourner le niveau, elle gère la caméra, les étoiles de fond, le score, etc. C'est un peu la classe centrale du projet.
-    def __init__(self, surface):
+    def __init__(self, surface, level_type='mixed', end_y=None, player_start_pos=None, player_velocity=None):
         self.display_surface = surface
         self.ground_y = 0
+        self.level_type = level_type
+        self.end_y = end_y
 
         self.visible_sprites = pygame.sprite.Group()
+        start_y = player_start_pos[1] if player_start_pos else self.ground_y
+        start_x = player_start_pos[0] if player_start_pos else 0
+        
         self.player = Player(
-            (0, self.ground_y),
+            (start_x, start_y),
             [self.visible_sprites],
             self.ground_y
         )
+        if player_velocity:
+            self.player.velocity = pygame.Vector2(player_velocity)
+            self.player.launched = True
 
         self.font = pygame.font.Font(None, 32)
         self.camera_x = self.player.position.x - SCREEN_WIDTH * 0.5
@@ -77,8 +85,14 @@ class Level:
         self.assets_dir = Path(__file__).with_name("assets")
         self.obstacle_images = self.load_obstacle_images()
         self.obstacles = pygame.sprite.Group()
-        self.max_obstacles = 45
-        self.obstacle_spawn_interval = 0.15
+        
+        if self.level_type == 'debris':
+            self.max_obstacles = 90
+            self.obstacle_spawn_interval = 0.05
+        else:
+            self.max_obstacles = 45
+            self.obstacle_spawn_interval = 0.15
+            
         self.obstacle_spawn_timer = 0.0
         self.collision_cooldown = 0.0
 
@@ -191,7 +205,11 @@ class Level:
         all_imgs = self.obstacle_images.get("debris", []) + self.obstacle_images.get("dechet", [])
         if not all_imgs: return
         
-        is_debris = random.random() < 0.4
+        if self.level_type == 'debris':
+            is_debris = True
+        else:
+            is_debris = random.random() < 0.4
+            
         choices = self.obstacle_images.get("debris", []) if is_debris else self.obstacle_images.get("dechet", [])
         if not choices: choices = all_imgs
         
@@ -295,3 +313,6 @@ class Level:
         self.draw_background()
         self.draw_sprites()
         self.draw_hud()
+        
+        if self.end_y is not None and self.player.position.y < self.end_y:
+            return "completed"
