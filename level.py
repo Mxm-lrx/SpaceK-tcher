@@ -97,8 +97,8 @@ class Level:
         
         if self.level_type == 'debris':
             # Level 1 première phase : moins de débris pour être plus facile
-            self.max_obstacles = 60
-            self.obstacle_spawn_interval = 0.10
+            self.max_obstacles = 30
+            self.obstacle_spawn_interval = 0.20
         else:
             self.max_obstacles = 45
             self.obstacle_spawn_interval = 0.15
@@ -268,8 +268,8 @@ class Level:
         all_imgs = self.obstacle_images.get("debris", []) + self.obstacle_images.get("dechet", [])
         if not all_imgs: return
         
-        # Pas de débris une fois atteint l'atmosphère (Y <= atmosphere_altitude)
-        if self.player.position.y <= self.atmosphere_altitude:
+        # Pas de débris tant qu'on est dans l'atmosphère (Y > atmosphere_altitude)
+        if self.player.position.y > self.atmosphere_altitude:
             return
         
         if self.level_type == 'debris':
@@ -326,8 +326,8 @@ class Level:
                (obstacle.position.y > self.camera_y + SCREEN_HEIGHT * 1.8) or \
                (obstacle.position.y < self.camera_y - SCREEN_HEIGHT * 2.5):
                 obstacle.kill()
-            # Retire les débris une fois dans l'atmosphère
-            elif obstacle.obstacle_type == "debris" and self.player.position.y <= self.atmosphere_altitude:
+            # Retire les obstacles tant qu'on est dans l'atmosphère
+            elif self.player.position.y > self.atmosphere_altitude:
                 obstacle.kill()
             elif random.random() < 0.002:
                 obstacle.base_velocity.rotate_ip(random.uniform(-35, 35))
