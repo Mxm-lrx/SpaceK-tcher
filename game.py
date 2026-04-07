@@ -23,7 +23,7 @@ class Game:
         self.high_score = self.load_high_score()
 
         self.font = pygame.font.Font(None, 48)
-        self.logo = load_texture('MissingTexture.jpg', scale_to=(350, 350))
+        self.logo = load_texture('logo.png', scale_to=(350, 350))
         self.sorting_scene = None
 
         # Sons
