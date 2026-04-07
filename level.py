@@ -4,6 +4,10 @@ import random
 import pygame
 from settings import SCREEN_HEIGHT, SCREEN_WIDTH, SOFT_YELLOW, OFF_WHITE, SOFT_CYAN
 from player import Player
+from particle_system import (
+    ParticleEmitter, ShootingStarManager, ScreenShake,
+    SpeedLines, CometManager
+)
 
 class FloatingObstacle(pygame.sprite.Sprite):
     obstacle_type = "base"
@@ -92,6 +96,27 @@ class Level:
         self.high_score = self.load_high_score()
         self.px_to_meter = 1.0  # Ajuste cette valeur selon l'échelle réelle du jeu (1 px = 1 m par défaut)
 
+        # Systèmes de particules AAA
+        self.particle_emitter = ParticleEmitter(max_particles=800)
+        self.shooting_stars = ShootingStarManager(spawn_rate=0.25)
+        self.screen_shake = ScreenShake()
+        
+        # Effets visuels (sans cercles)
+        self.speed_lines = SpeedLines()
+        self.comet_manager = CometManager(spawn_rate=0.03)
+        
+        # Couches de parallaxe pour les étoiles
+        self.star_layers = [
+            {'speed': 0.15, 'density': 30, 'size_range': (1, 1), 'brightness': 120},  # Très lointaines
+            {'speed': 0.3, 'density': 22, 'size_range': (1, 2), 'brightness': 180},   # Lointaines
+            {'speed': 0.5, 'density': 15, 'size_range': (1, 2), 'brightness': 220},   # Moyennes
+            {'speed': 0.8, 'density': 8, 'size_range': (2, 3), 'brightness': 255},    # Proches
+        ]
+        
+        # Animation du score
+        self.displayed_score = 0
+        self.score_animation_speed = 100  # points par seconde
+
         self.assets_dir = Path(__file__).with_name("assets")
         self.obstacle_images = self.load_obstacle_images()
         self.obstacles = pygame.sprite.Group()
@@ -106,12 +131,12 @@ class Level:
                 pass
         
         if self.level_type == 'debris':
-            # Level 1 première phase : moins de débris pour être plus facile
-            self.max_obstacles = 30
-            self.obstacle_spawn_interval = 0.20
+            # Level 1 première phase : beaucoup moins de débris pour être plus facile
+            self.max_obstacles = 15
+            self.obstacle_spawn_interval = 0.5
         else:
-            self.max_obstacles = 45
-            self.obstacle_spawn_interval = 0.15
+            self.max_obstacles = 30
+            self.obstacle_spawn_interval = 0.25
             
         self.obstacle_spawn_timer = 0.0
         self.collision_cooldown = 0.0
@@ -123,7 +148,7 @@ class Level:
         else:
             self.atmosphere_altitude = -5000  # Niveau 2 : atmosphère plus haute
 
-        for _ in range(min(8, self.max_obstacles)):
+        for _ in range(min(5, self.max_obstacles)):
             self.spawn_obstacle()
 
     def load_high_score(self):
@@ -147,6 +172,9 @@ class Level:
         return ((col * 73856093) ^ (row * 19349663) ^ 0x9E3779B9) & 0xFFFFFFFF
 
     def draw_background(self):
+        # Appliquer le screen shake
+        shake_cam_x, shake_cam_y = self.screen_shake.apply(self.camera_x, self.camera_y)
+        
         # Gradient du ciel bleu au ciel noir (espace) basé sur l'altitude du joueur
         player_y = self.player.position.y
         
@@ -160,7 +188,7 @@ class Level:
             sky_blue = (100, 160, 240)  # Bleu doux
             atmosphere_start = -1000
         
-        space_black = (20, 20, 40)  # Noir de l'espace
+        space_black = (15, 15, 35)  # Noir de l'espace (plus profond)
         
         # Calcul de la transition (0.0 = bleu pur, 1.0 = noir pur)
         transition_range = self.atmosphere_altitude - atmosphere_start
@@ -168,6 +196,9 @@ class Level:
             transition = 0.0 if player_y > self.atmosphere_altitude else 1.0
         else:
             transition = max(0.0, min(1.0, (player_y - atmosphere_start) / transition_range))
+        
+        # Stocker la transition pour les autres systèmes
+        self.space_transition = transition
         
         # Interpolation linéaire entre ciel bleu et noir de l'espace
         bg_color = (
@@ -181,83 +212,356 @@ class Level:
         if self.ground_image and self.player.position.y > self.atmosphere_altitude:
             ground_width, ground_height = self.ground_image.get_size()
             # Position du sol au ground_y, tile horizontalement avec la caméra
-            screen_ground_y = int(self.ground_y - self.camera_y)
+            screen_ground_y = int(self.ground_y - shake_cam_y)
             
             # Boucle de tiling horizontal
-            x_offset = int(self.camera_x) % ground_width
+            x_offset = int(shake_cam_x) % ground_width
             screen_x = -x_offset
             while screen_x < SCREEN_WIDTH:
                 screen_rect = self.ground_image.get_rect(topleft=(screen_x, screen_ground_y))
                 self.display_surface.blit(self.ground_image, screen_rect)
                 screen_x += ground_width
         
-        # Équipe : étoiles procédurales, calculées seulement autour de la caméra (RAM quasi constante).
-        # Les étoiles apparaissent quand transition > 0.3 (environ -1400 pour le niveau 1)
-        if transition > 0.3:
-            cell_size = 140
-            start_col = math.floor(self.camera_x / cell_size) - 1
-            end_col = math.floor((self.camera_x + SCREEN_WIDTH) / cell_size) + 1
-            start_row = math.floor(self.camera_y / cell_size) - 1
-            end_row = math.floor((self.camera_y + SCREEN_HEIGHT) / cell_size) + 1
+        # Étoiles en parallaxe multi-couches
+        if transition > 0.2:
+            for layer in self.star_layers:
+                self._draw_star_layer(layer, shake_cam_x, shake_cam_y, transition)
+        
+        # Comètes spectaculaires
+        self.comet_manager.draw(self.display_surface, shake_cam_x, shake_cam_y)
+        
+        # Étoiles filantes
+        self.shooting_stars.draw(self.display_surface, shake_cam_x, shake_cam_y)
 
-            for col in range(start_col, end_col + 1):
-                for row in range(start_row, end_row + 1):
-                    hash_value = self.star_hash(col, row)
-                    if hash_value % 100 >= 58:
-                        continue
-
-                    x_offset = (hash_value >> 8) % cell_size
-                    y_offset = (hash_value >> 16) % cell_size
-                    world_x = col * cell_size + x_offset
-                    world_y = row * cell_size + y_offset
-                    screen_x = int(world_x - self.camera_x)
-                    screen_y = int(world_y - self.camera_y)
-
-                    radius = 1 + (hash_value % 2)
-                    pygame.draw.circle(self.display_surface, OFF_WHITE, (screen_x, screen_y), radius)
-
-        launch_pad = pygame.Rect(
-            int(-90 - self.camera_x),
-            int(self.ground_y + 50 - self.camera_y),
-            180,
-            10,
-        )
+        # Pad de lancement avec effet de glow
+        pad_x = int(-90 - shake_cam_x)
+        pad_y = int(self.ground_y + 50 - shake_cam_y)
+        
+        # Glow du pad
+        if transition < 0.5:
+            glow_surf = pygame.Surface((220, 30), pygame.SRCALPHA)
+            for i in range(3):
+                alpha = 30 - i * 10
+                pygame.draw.rect(glow_surf, (*SOFT_CYAN[:3], alpha), 
+                               (10 - i * 5, 5 - i * 2, 200 + i * 10, 20 + i * 4), 
+                               border_radius=8)
+            self.display_surface.blit(glow_surf, (pad_x - 10, pad_y - 5), 
+                                     special_flags=pygame.BLEND_ADD)
+        
+        launch_pad = pygame.Rect(pad_x, pad_y, 180, 10)
         pygame.draw.rect(self.display_surface, SOFT_CYAN, launch_pad, border_radius=4)
+    
+    def _draw_star_layer(self, layer, cam_x, cam_y, transition):
+        """Dessine une couche d'étoiles avec effet de parallaxe"""
+        cell_size = 160
+        parallax_x = cam_x * layer['speed']
+        parallax_y = cam_y * layer['speed']
+        
+        start_col = math.floor(parallax_x / cell_size) - 1
+        end_col = math.floor((parallax_x + SCREEN_WIDTH) / cell_size) + 1
+        start_row = math.floor(parallax_y / cell_size) - 1
+        end_row = math.floor((parallax_y + SCREEN_HEIGHT) / cell_size) + 1
+
+        for col in range(start_col, end_col + 1):
+            for row in range(start_row, end_row + 1):
+                hash_value = self.star_hash(col, row)
+                if hash_value % 100 >= layer['density']:
+                    continue
+
+                x_offset = (hash_value >> 8) % cell_size
+                y_offset = (hash_value >> 16) % cell_size
+                world_x = col * cell_size + x_offset
+                world_y = row * cell_size + y_offset
+                screen_x = int(world_x - parallax_x)
+                screen_y = int(world_y - parallax_y)
+
+                # Taille et luminosité basées sur le hash
+                size = layer['size_range'][0] + (hash_value % 3) * (layer['size_range'][1] - layer['size_range'][0]) // 2
+                
+                # Scintillement subtil
+                twinkle = 0.7 + 0.3 * math.sin((pygame.time.get_ticks() / 1000) * (hash_value % 5 + 1) + hash_value)
+                brightness = int(layer['brightness'] * transition * twinkle)
+                color = (brightness, brightness, min(255, brightness + 20))
+                
+                pygame.draw.circle(self.display_surface, color, (screen_x, screen_y), size)
 
     # C'est la fonction qui dessine tous les sprites à l'écran, elle est appelée à chaque frame depuis run()
     def draw_sprites(self):
-        for sprite in self.visible_sprites:
-            screen_pos = (sprite.position.x - self.camera_x, sprite.position.y - self.camera_y)
-            screen_rect = sprite.image.get_rect(center=screen_pos)
-            self.display_surface.blit(sprite.image, screen_rect)
+        shake_cam_x, shake_cam_y = self.screen_shake.apply(self.camera_x, self.camera_y)
+        
+        # Dessiner d'abord les obstacles avec un léger glow pour les déchets
+        for obstacle in self.obstacles:
+            screen_pos = (obstacle.position.x - shake_cam_x, obstacle.position.y - shake_cam_y)
+            screen_rect = obstacle.image.get_rect(center=screen_pos)
+            
+            # Glow pour les déchets collectables
+            if obstacle.obstacle_type == "dechet":
+                glow_size = max(obstacle.image.get_width(), obstacle.image.get_height()) + 10
+                glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+                glow_color = (255, 255, 100, 40)  # Jaune transparent
+                pygame.draw.circle(glow_surf, glow_color, (glow_size // 2, glow_size // 2), glow_size // 2)
+                self.display_surface.blit(glow_surf, 
+                                         (screen_pos[0] - glow_size // 2, screen_pos[1] - glow_size // 2),
+                                         special_flags=pygame.BLEND_ADD)
+            
+            self.display_surface.blit(obstacle.image, screen_rect)
+        
+        # Dessiner le joueur avec effet de glow
+        player = self.player
+        player_screen_pos = (player.position.x - shake_cam_x, player.position.y - shake_cam_y)
+        
+        # Glow autour de la fusée quand elle est lancée
+        if player.launched:
+            glow_size = max(player.image.get_width(), player.image.get_height()) + 30
+            glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+            
+            # Couleur du glow selon le boost
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_z]:
+                glow_color = (100, 180, 255, 50)  # Bleu pour boost
+            else:
+                glow_color = (255, 200, 100, 35)  # Orange normal
+            
+            for r in range(glow_size // 2, 5, -5):
+                alpha = glow_color[3] * r // (glow_size // 2)
+                pygame.draw.circle(glow_surf, (*glow_color[:3], alpha), 
+                                 (glow_size // 2, glow_size // 2), r)
+            
+            self.display_surface.blit(glow_surf, 
+                                     (player_screen_pos[0] - glow_size // 2, 
+                                      player_screen_pos[1] - glow_size // 2),
+                                     special_flags=pygame.BLEND_ADD)
+        
+        # Dessiner la fusée
+        player_rect = player.image.get_rect(center=player_screen_pos)
+        self.display_surface.blit(player.image, player_rect)
+        
+        # Projection de trajectoire (quand la fusée est lancée)
+        if player.launched:
+            self._draw_trajectory_prediction(shake_cam_x, shake_cam_y)
+        
+        # Dessiner les particules au-dessus
+        self.particle_emitter.draw(self.display_surface, shake_cam_x, shake_cam_y)
+    
+    def _draw_trajectory_prediction(self, camera_x, camera_y):
+        """Dessine une projection de la trajectoire future de la fusée"""
+        # Paramètres de simulation
+        sim_x = float(self.player.position.x)
+        sim_y = float(self.player.position.y)
+        sim_vx = float(self.player.velocity.x)
+        sim_vy = float(self.player.velocity.y)
+        sim_angle = self.player.angle
+        
+        # Paramètres physiques (copiés du player)
+        gravity = self.player.gravity
+        thrust = self.player.thrust_power
+        drag = self.player.linear_drag
+        
+        # Vérifier si boost actif
+        keys = pygame.key.get_pressed()
+        boost_mult = 3.0 if keys[pygame.K_z] else 1.0
+        
+        points = []
+        dt_sim = 0.05  # Pas de simulation
+        
+        for i in range(60):  # Simuler ~3 secondes
+            # Calculer la direction de poussée
+            rad = math.radians(sim_angle)
+            forward_x = -math.sin(rad)
+            forward_y = -math.cos(rad)
+            
+            # Accélération
+            acc_x = forward_x * thrust * boost_mult
+            acc_y = gravity + forward_y * thrust * boost_mult
+            
+            # Mise à jour vélocité
+            sim_vx += acc_x * dt_sim
+            sim_vy += acc_y * dt_sim
+            sim_vx *= (1.0 - drag * dt_sim)
+            sim_vy *= (1.0 - drag * dt_sim)
+            
+            # Mise à jour position
+            sim_x += sim_vx * dt_sim
+            sim_y += sim_vy * dt_sim
+            
+            # Convertir en coordonnées écran
+            screen_x = int(sim_x - camera_x)
+            screen_y = int(sim_y - camera_y)
+            
+            # Arrêter si hors écran
+            if screen_y > SCREEN_HEIGHT + 100 or screen_y < -500:
+                break
+            
+            points.append((screen_x, screen_y))
+        
+        # Dessiner les points de trajectoire avec dégradé
+        for i, (px, py) in enumerate(points):
+            if i % 2 != 0:  # Un point sur deux pour effet pointillé
+                continue
+            
+            # Dégradé de transparence
+            alpha = int(180 * (1 - i / len(points))) if points else 0
+            size = max(1, 4 - i // 15)
+            
+            if alpha > 10 and 0 <= px < SCREEN_WIDTH and 0 <= py < SCREEN_HEIGHT:
+                dot_surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                color = (255, 255, 255, alpha)
+                pygame.draw.circle(dot_surf, color, (size, size), size)
+                self.display_surface.blit(dot_surf, (px - size, py - size))
 
     #C'est la fonction qui dessine le score et les instructions à l'écran, elle est appelée à chaque frame depuis run()
-    def draw_hud(self):
-        score_text = self.font.render(f"Score : {self.score}   Meilleur score : {self.high_score}", True, SOFT_YELLOW)
-        controls_text = self.font.render("Appuie sur ESPACE pour décoller | Gauche/Droite pour diriger", True, SOFT_YELLOW)
-        speed_text = self.font.render(f"Vitesse : {self.get_speed_kmh():.1f} km/h", True, SOFT_YELLOW)
-
-        self.display_surface.blit(score_text, (20, 18))
-        self.display_surface.blit(controls_text, (20, 48))
-        self.display_surface.blit(speed_text, (20, 78))
+    def draw_hud(self, dt):
+        # Animation fluide du score
+        if self.displayed_score < self.score:
+            self.displayed_score = min(self.score, self.displayed_score + self.score_animation_speed * dt)
+        elif self.displayed_score > self.score:
+            self.displayed_score = self.score
+        
+        display_score = int(self.displayed_score)
+        
+        # Fond semi-transparent pour le HUD (plus lisible)
+        hud_bg = pygame.Surface((350, 120), pygame.SRCALPHA)
+        hud_bg.fill((0, 0, 0, 100))
+        pygame.draw.rect(hud_bg, (255, 255, 255, 50), hud_bg.get_rect(), 2, border_radius=10)
+        self.display_surface.blit(hud_bg, (10, 10))
+        
+        # Score avec effet de couleur quand il change
+        score_color = SOFT_YELLOW if self.displayed_score == self.score else (100, 255, 100)
+        score_text = self.font.render(f"Score : {display_score}", True, score_color)
+        hs_text = self.font.render(f"Meilleur : {self.high_score}", True, (200, 200, 200))
+        
+        self.display_surface.blit(score_text, (25, 22))
+        self.display_surface.blit(hs_text, (25, 48))
+        
+        # Vitesse avec effet visuel
+        speed_kmh = self.get_speed_kmh()
+        speed_color = SOFT_YELLOW
+        if speed_kmh > 500:
+            speed_color = (255, 150, 50)  # Orange pour vitesse élevée
+        if speed_kmh > 800:
+            speed_color = (255, 100, 100)  # Rouge pour très haute vitesse
+        
+        speed_text = self.font.render(f"Vitesse : {speed_kmh:.0f} km/h", True, speed_color)
+        self.display_surface.blit(speed_text, (25, 74))
+        
+        # Indicateur d'altitude / progression (barre verticale à droite)
+        if self.end_y is not None:
+            self._draw_altitude_indicator()
+        
+        # Indicateur de boost
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_z] and self.player.launched:
+            boost_text = self.font.render("⚡ BOOST ⚡", True, (100, 200, 255))
+            boost_rect = boost_text.get_rect(center=(SCREEN_WIDTH // 2, 30))
+            
+            # Fond pulsant
+            pulse = 0.7 + 0.3 * math.sin(pygame.time.get_ticks() / 100)
+            glow_surf = pygame.Surface((boost_rect.width + 40, boost_rect.height + 20), pygame.SRCALPHA)
+            glow_color = (100, 200, 255, int(80 * pulse))
+            pygame.draw.rect(glow_surf, glow_color, glow_surf.get_rect(), border_radius=10)
+            self.display_surface.blit(glow_surf, (boost_rect.x - 20, boost_rect.y - 10))
+            self.display_surface.blit(boost_text, boost_rect)
+        
+        # Contrôles (plus discret en bas)
+        if self.level_time < 8.0:  # Afficher les contrôles seulement au début
+            alpha = int(255 * max(0, 1 - self.level_time / 8.0))
+            controls_surf = pygame.Surface((500, 30), pygame.SRCALPHA)
+            small_font = pygame.font.Font(None, 26)
+            controls_text = small_font.render("ESPACE: Décoller  |  ←/→: Diriger  |  Z: Boost", True, (200, 200, 200, alpha))
+            controls_surf.blit(controls_text, (0, 0))
+            self.display_surface.blit(controls_surf, (SCREEN_WIDTH // 2 - 230, SCREEN_HEIGHT - 40))
 
         # Animation du titre de niveau
         if self.level_time < 4.0:
-            if self.level_time < 0.8:
-                # Arrive du haut (0 à 0.8s)
-                y_pos = -100 + (self.level_time / 0.8) * 200
-            elif self.level_time < 3.2:
-                # Reste au centre (0.8s à 3.2s)
-                y_pos = 100
-            else:
-                # Repart vers le haut (3.2s à 4.0s)
-                y_pos = 100 - ((self.level_time - 3.2) / 0.8) * 200
-
-            from settings import SCREEN_WIDTH
-            title_surf = self.title_font.render(self.title_text, True, (255, 255, 255))
-            shadow_surf = self.title_font.render(self.title_text, True, (0, 0, 0))
-            self.display_surface.blit(shadow_surf, (SCREEN_WIDTH//2 - shadow_surf.get_width()//2 + 3, y_pos + 3))
-            self.display_surface.blit(title_surf, (SCREEN_WIDTH//2 - title_surf.get_width()//2, y_pos))
+            self._draw_level_title()
+    
+    def _draw_altitude_indicator(self):
+        """Dessine un indicateur de progression verticale élégant"""
+        bar_height = 200
+        bar_width = 12
+        bar_x = SCREEN_WIDTH - 35
+        bar_y = SCREEN_HEIGHT // 2 - bar_height // 2
+        
+        # Calcul de la progression
+        start_y = self.ground_y
+        progress = max(0, min(1, (start_y - self.player.position.y) / (start_y - self.end_y)))
+        
+        # Fond de la barre
+        bg_rect = pygame.Rect(bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4)
+        pygame.draw.rect(self.display_surface, (30, 30, 50), bg_rect, border_radius=6)
+        pygame.draw.rect(self.display_surface, (80, 80, 100), bg_rect, 2, border_radius=6)
+        
+        # Barre de progression avec gradient
+        fill_height = int(bar_height * progress)
+        if fill_height > 0:
+            for i in range(fill_height):
+                ratio = i / bar_height
+                color = (
+                    int(100 + 155 * ratio),  # Rouge -> Orange
+                    int(200 - 100 * ratio),  # Vert -> Jaune
+                    int(100 - 50 * ratio)    # Bleu -> Orange
+                )
+                y_pos = bar_y + bar_height - i
+                pygame.draw.line(self.display_surface, color, 
+                               (bar_x, y_pos), (bar_x + bar_width, y_pos))
+        
+        # Icône de fusée sur l'indicateur
+        rocket_y = bar_y + bar_height - int(bar_height * progress)
+        pygame.draw.polygon(self.display_surface, (255, 255, 255), [
+            (bar_x + bar_width + 8, rocket_y),
+            (bar_x + bar_width + 18, rocket_y + 6),
+            (bar_x + bar_width + 18, rocket_y - 6)
+        ])
+        
+        # Label
+        small_font = pygame.font.Font(None, 22)
+        pct_text = small_font.render(f"{int(progress * 100)}%", True, (200, 200, 200))
+        self.display_surface.blit(pct_text, (bar_x - 5, bar_y + bar_height + 8))
+    
+    def _draw_level_title(self):
+        """Dessine le titre du niveau avec animation et effets"""
+        if self.level_time < 0.8:
+            # Arrive du haut (0 à 0.8s)
+            y_pos = -100 + (self.level_time / 0.8) * 200
+            alpha = int(255 * (self.level_time / 0.8))
+        elif self.level_time < 3.2:
+            # Reste au centre (0.8s à 3.2s)
+            y_pos = 100
+            alpha = 255
+        else:
+            # Repart vers le haut (3.2s à 4.0s)
+            y_pos = 100 - ((self.level_time - 3.2) / 0.8) * 200
+            alpha = int(255 * (1 - (self.level_time - 3.2) / 0.8))
+        
+        # Créer les surfaces avec alpha
+        title_surf = self.title_font.render(self.title_text, True, (255, 255, 255))
+        shadow_surf = self.title_font.render(self.title_text, True, (0, 0, 0))
+        
+        # Glow derrière le titre
+        glow_width = title_surf.get_width() + 60
+        glow_height = title_surf.get_height() + 40
+        glow_surf = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+        
+        for i in range(3):
+            glow_alpha = max(0, (alpha // 4) - i * 15)
+            pygame.draw.rect(glow_surf, (100, 150, 255, glow_alpha),
+                           (i * 10, i * 8, glow_width - i * 20, glow_height - i * 16),
+                           border_radius=15)
+        
+        glow_x = SCREEN_WIDTH // 2 - glow_width // 2
+        glow_y = y_pos - 20
+        self.display_surface.blit(glow_surf, (glow_x, glow_y), special_flags=pygame.BLEND_ADD)
+        
+        # Ombre et titre
+        title_x = SCREEN_WIDTH // 2 - title_surf.get_width() // 2
+        
+        if alpha < 255:
+            # Appliquer l'alpha si nécessaire
+            shadow_surf.set_alpha(alpha)
+            title_surf.set_alpha(alpha)
+        
+        self.display_surface.blit(shadow_surf, (title_x + 3, y_pos + 3))
+        self.display_surface.blit(title_surf, (title_x, y_pos))
 
     def get_speed_kmh(self):
         velocity = getattr(self.player, "velocity", None)
@@ -382,6 +686,14 @@ class Level:
 
             if delta.length_squared() <= hit_dist * hit_dist:
                 if obstacle.obstacle_type == "debris":
+                    # Explosion spectaculaire !
+                    self.particle_emitter.emit_explosion(
+                        self.player.position.x, 
+                        self.player.position.y, 
+                        count=60
+                    )
+                    self.screen_shake.trigger(intensity=25, duration=0.5)
+                    
                     import utils
                     img = utils.load_texture("explode.png")
                     w, h = self.player.image.get_size()
@@ -396,6 +708,14 @@ class Level:
                         game_instance.change_state("game_over")
                     break
                 elif obstacle.obstacle_type == "dechet":
+                    # Effet de collecte avec sparkles
+                    self.particle_emitter.emit_sparkle(
+                        obstacle.position.x,
+                        obstacle.position.y,
+                        color=(255, 255, 100),
+                        count=20
+                    )
+                    
                     game_instance.collected_trash.append((getattr(obstacle, "item_name", "Inconnu"), obstacle.image.copy()))
                     game_instance.score += 10
                     obstacle.kill()
@@ -407,6 +727,42 @@ class Level:
         self.visible_sprites.update(dt)
         self.update_camera()
         self.update_obstacles(dt)
+        
+        # Mise à jour des systèmes de particules
+        self.particle_emitter.update(dt)
+        self.screen_shake.update(dt)
+        
+        # Étoiles filantes et comètes (seulement dans l'espace)
+        in_space = getattr(self, 'space_transition', 0) > 0.5
+        self.shooting_stars.update(dt, self.camera_x, self.camera_y, in_space)
+        self.comet_manager.update(dt, self.camera_x, self.camera_y, in_space)
+        
+        # Lignes de vitesse (effet de mouvement rapide)
+        self.speed_lines.update(
+            dt, 
+            self.player.velocity.x, 
+            self.player.velocity.y,
+            self.player.position.x,
+            self.player.position.y
+        )
+        
+        # Émission des particules de propulsion
+        if self.player.launched:
+            keys = pygame.key.get_pressed()
+            boost = keys[pygame.K_z]
+            
+            # Position de l'émission (arrière de la fusée)
+            rad = math.radians(self.player.angle)
+            emit_x = self.player.position.x + math.sin(rad) * 50
+            emit_y = self.player.position.y + math.cos(rad) * 50
+            
+            self.particle_emitter.emit_thrust(
+                emit_x, emit_y,
+                self.player.angle,
+                intensity=1.2 if boost else 0.8,
+                boost=boost
+            )
+        
         if game_instance:
             self.handle_obstacle_collisions(dt, game_instance)
         # Met à jour le HUD avec le score
@@ -423,7 +779,12 @@ class Level:
 
         self.draw_background()
         self.draw_sprites()
-        self.draw_hud()
+        
+        # Lignes de vitesse au premier plan
+        shake_cam_x, shake_cam_y = self.screen_shake.apply(self.camera_x, self.camera_y)
+        self.speed_lines.draw(self.display_surface, shake_cam_x, shake_cam_y)
+        
+        self.draw_hud(dt)
         
         if self.end_y is not None and self.player.position.y < self.end_y:
             return "completed"

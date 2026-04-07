@@ -33,6 +33,15 @@ SOFT_CYAN   = (100, 220, 220)	#Cyan doux
 # On définit la couleur de fond du jeu
 BG_COLOR = (20, 20, 40)
 
+# Couleurs pour les effets visuels AAA
+GLOW_BLUE = (100, 180, 255)
+GLOW_ORANGE = (255, 150, 50)
+GLOW_PURPLE = (180, 100, 255)
+SPACE_BLUE = (15, 15, 35)
+NEBULA_PURPLE = (80, 40, 120)
+NEBULA_BLUE = (40, 80, 120)
+STAR_WHITE = (255, 255, 255)
+
 # On définit la taille des tuiles du monde
 TILESIZE = 64
 # On définit la carte du monde du jeu, où 'X' représente les murs et les espaces vides représentent les zones où la fusée peut se déplacer
