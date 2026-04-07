@@ -10,7 +10,7 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         self.levels = [
-            Level(self.screen, level_type='debris', end_y=-8000),
+            Level(self.screen, level_type='debris', end_y=-16000),
             Level(self.screen, level_type='mixed')
         ]
         self.current_level_index = 0
@@ -114,7 +114,7 @@ class Game:
             self.score = 0
             self.collected_trash.clear()
             self.levels = [
-                Level(self.screen, level_type='debris', end_y=-8000),
+                Level(self.screen, level_type='debris', end_y=-16000),
                 Level(self.screen, level_type='mixed')
             ]
             self.current_level_index = 0
@@ -136,11 +136,6 @@ class Game:
         elif self.state == 'playing':
             level_status = self.current_level.run(dt, self)
             if level_status == "completed":
-                # Joue un son de victoire aléatoire
-                win_sounds = [ws for ws in self.victory_sounds if ws]
-                if win_sounds:
-                    random.choice(win_sounds).play()
-
                 # Keep track of old player state
                 old_player = self.current_level.player
                 pos = (old_player.position.x, old_player.position.y)

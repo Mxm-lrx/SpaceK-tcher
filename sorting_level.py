@@ -73,6 +73,10 @@ class SortingLevel:
         self.trash_list = trash_list  # Liste de tuples : (nom_objet, image_surface)
         self.font = pygame.font.Font(None, 48)
 
+        self.level_time = 0.0
+        self.title_text = "Niveau 3 : Le Grand Centre de Tri"
+        self.title_font = pygame.font.Font(None, 64)
+
         self.visible_sprites = pygame.sprite.Group()
         self.bins = pygame.sprite.Group()
 
@@ -128,6 +132,13 @@ class SortingLevel:
             return
 
         if self.current_trash is None:
+            if not getattr(self, 'win_played', False):
+                self.win_played = True
+                win_sounds = [ws for ws in getattr(game_instance, 'victory_sounds', []) if ws]
+                if win_sounds:
+                    import random
+                    random.choice(win_sounds).play()
+
             txt = self.font.render("Tri termine ! Espace pour Menu.", True, (255, 255, 255))
             self.display_surface.blit(txt, (SCREEN_WIDTH//2 - txt.get_width()//2, SCREEN_HEIGHT//2))
             
@@ -173,6 +184,25 @@ class SortingLevel:
                 self.current_trash.kill()
                 self.spawn_next_trash()
 
+        self.level_time += dt
+
         self.visible_sprites.update(dt)
         self.visible_sprites.draw(self.display_surface)
+
+        # Animation du titre de niveau
+        if self.level_time < 4.0:
+            if self.level_time < 0.8:
+                # Arrive du haut (0 à 0.8s)
+                y_pos = -100 + (self.level_time / 0.8) * 200
+            elif self.level_time < 3.2:
+                # Reste au centre (0.8s à 3.2s)
+                y_pos = 100
+            else:
+                # Repart vers le haut (3.2s à 4.0s)
+                y_pos = 100 - ((self.level_time - 3.2) / 0.8) * 200
+
+            title_surf = self.title_font.render(self.title_text, True, (255, 255, 255))
+            shadow_surf = self.title_font.render(self.title_text, True, (0, 0, 0))
+            self.display_surface.blit(shadow_surf, (SCREEN_WIDTH//2 - shadow_surf.get_width()//2 + 3, y_pos + 3))
+            self.display_surface.blit(title_surf, (SCREEN_WIDTH//2 - title_surf.get_width()//2, y_pos))
 

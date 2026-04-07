@@ -61,6 +61,13 @@ class Level:
         self.level_type = level_type
         self.end_y = end_y
 
+        self.level_time = 0.0
+        if self.level_type == 'debris':
+            self.title_text = "Niveau 1 : L'Échappée Terrestre"
+        else:
+            self.title_text = "Niveau 2 : Récolte en Orbite"
+        self.title_font = pygame.font.Font(None, 64)
+
         from utils import load_sound
         self.crash_sound = load_sound('bruit de collision.wav')
 
@@ -234,6 +241,24 @@ class Level:
         self.display_surface.blit(controls_text, (20, 48))
         self.display_surface.blit(speed_text, (20, 78))
 
+        # Animation du titre de niveau
+        if self.level_time < 4.0:
+            if self.level_time < 0.8:
+                # Arrive du haut (0 à 0.8s)
+                y_pos = -100 + (self.level_time / 0.8) * 200
+            elif self.level_time < 3.2:
+                # Reste au centre (0.8s à 3.2s)
+                y_pos = 100
+            else:
+                # Repart vers le haut (3.2s à 4.0s)
+                y_pos = 100 - ((self.level_time - 3.2) / 0.8) * 200
+
+            from settings import SCREEN_WIDTH
+            title_surf = self.title_font.render(self.title_text, True, (255, 255, 255))
+            shadow_surf = self.title_font.render(self.title_text, True, (0, 0, 0))
+            self.display_surface.blit(shadow_surf, (SCREEN_WIDTH//2 - shadow_surf.get_width()//2 + 3, y_pos + 3))
+            self.display_surface.blit(title_surf, (SCREEN_WIDTH//2 - title_surf.get_width()//2, y_pos))
+
     def get_speed_kmh(self):
         velocity = getattr(self.player, "velocity", None)
         if velocity is None:
@@ -378,6 +403,7 @@ class Level:
 
     # C'est la fonction qui met à jour le niveau, elle est appelée à chaque frame depuis run() dans game.py
     def run(self, dt, game_instance=None):
+        self.level_time += dt
         self.visible_sprites.update(dt)
         self.update_camera()
         self.update_obstacles(dt)
@@ -387,6 +413,14 @@ class Level:
         if game_instance:
             self.score = game_instance.score
             self.high_score = game_instance.high_score
+            
+            # Fade out du bruit de décollage si on quitte l'atmosphère
+            if self.player.position.y <= self.atmosphere_altitude:
+                if hasattr(game_instance, 'takeoff_sound') and game_instance.takeoff_sound:
+                    if not getattr(self, 'takeoff_faded', False):
+                        game_instance.takeoff_sound.fadeout(2000)
+                        self.takeoff_faded = True
+
         self.draw_background()
         self.draw_sprites()
         self.draw_hud()
