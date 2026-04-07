@@ -5,7 +5,7 @@ from utils import load_texture
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, groups, ground_y):
-        super().__init__(groups)
+        super().__init__(groups) 
 
         # On initialise les propriétés de la fusée :
         # On initialise la position de spawn de la fusée

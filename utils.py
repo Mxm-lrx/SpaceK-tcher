@@ -52,10 +52,27 @@ def load_texture(file_name, convert_alpha=True, scale_to=None, fallback_surface=
 		surface = fallback_surface if fallback_surface is not None else _fallback_checkerboard()
 
 	surface = _prepare_surface(surface, convert_alpha)
-	# Si scale_to est spécifié, redimensionne la surface à la taille souhaitée
+# Si scale_to est spécifié, redimensionne la surface à la taille souhaitée
 	if scale_to is not None:
 		surface = pygame.transform.smoothscale(surface, scale_to)
 	return surface
+
+# Cette fonction charge un effet sonore depuis le dossier assets/subfolder (par défaut Bruitage).
+def load_sound(file_name, subfolder="Bruitage"):
+	path = os.path.join(ASSETS_DIR, subfolder, file_name)
+	try:
+		return pygame.mixer.Sound(path)
+	except (pygame.error, FileNotFoundError, NotImplementedError):
+		return None
+
+# Cette fonction charge et lance la musique de fond depuis le dossier assets/subfolder (par défaut Son).
+def play_music(file_name, subfolder="Son", loop=-1):
+	path = os.path.join(ASSETS_DIR, subfolder, file_name)
+	try:
+		pygame.mixer.music.load(path)
+		pygame.mixer.music.play(loop)
+	except (pygame.error, FileNotFoundError, NotImplementedError):
+		pass
 
 ####################################################################################################
 

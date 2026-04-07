@@ -61,6 +61,9 @@ class Level:
         self.level_type = level_type
         self.end_y = end_y
 
+        from utils import load_sound
+        self.crash_sound = load_sound('bruit de collision.wav')
+
         self.visible_sprites = pygame.sprite.Group()
         start_y = player_start_pos[1] if player_start_pos else self.ground_y
         start_x = player_start_pos[0] if player_start_pos else 0
@@ -358,6 +361,10 @@ class Level:
                     img = utils.load_texture("explode.png")
                     w, h = self.player.image.get_size()
                     self.player.image = pygame.transform.smoothscale(img, (w, h))
+                    
+                    if hasattr(self, 'crash_sound') and self.crash_sound:
+                        self.crash_sound.play()
+                        
                     if len(game_instance.collected_trash) > 0:
                         game_instance.change_state("sorting_level")
                     else:

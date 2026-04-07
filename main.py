@@ -7,7 +7,10 @@ from utils import load_texture
 # On définit la classe principale du jeu, qui gère l'initialisation de Pygame, la création de la fenêtre, et la boucle principale du jeu
 class Main:
     def __init__(self):
+        # Initialisation du mixeur audio pour éviter la latence
+        pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
+        pygame.mixer.init()
         
         # Chargement et assignation de l'icône de la fenêtre du jeu
         icon_img = load_texture('logo_rvb.png', convert_alpha=False)
