@@ -165,9 +165,9 @@ class ParticleEmitter:
             vy = math.sin(angle) * speed
             
             # Variation de couleur
-            r = min(255, color[0] + random.randint(-30, 30))
-            g = min(255, color[1] + random.randint(-30, 30))
-            b = min(255, color[2] + random.randint(-30, 30))
+            r = max(0, min(255, color[0] + random.randint(-30, 30)))
+            g = max(0, min(255, color[1] + random.randint(-30, 30)))
+            b = max(0, min(255, color[2] + random.randint(-30, 30)))
             
             size = random.uniform(2, 5)
             life = random.uniform(0.3, 0.7)

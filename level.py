@@ -310,27 +310,7 @@ class Level:
         player = self.player
         player_screen_pos = (player.position.x - shake_cam_x, player.position.y - shake_cam_y)
         
-        # Glow autour de la fusée quand elle est lancée
-        if player.launched:
-            glow_size = max(player.image.get_width(), player.image.get_height()) + 30
-            glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
-            
-            # Couleur du glow selon le boost
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_z]:
-                glow_color = (100, 180, 255, 50)  # Bleu pour boost
-            else:
-                glow_color = (255, 200, 100, 35)  # Orange normal
-            
-            for r in range(glow_size // 2, 5, -5):
-                alpha = glow_color[3] * r // (glow_size // 2)
-                pygame.draw.circle(glow_surf, (*glow_color[:3], alpha), 
-                                 (glow_size // 2, glow_size // 2), r)
-            
-            self.display_surface.blit(glow_surf, 
-                                     (player_screen_pos[0] - glow_size // 2, 
-                                      player_screen_pos[1] - glow_size // 2),
-                                     special_flags=pygame.BLEND_ADD)
+
         
         # Dessiner la fusée
         player_rect = player.image.get_rect(center=player_screen_pos)

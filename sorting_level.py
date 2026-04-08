@@ -13,21 +13,10 @@ FAILURE_MESSAGES = {
     "bouteilleverre": "Erreur : le verre est recyclable à l'infini. Il doit aller dans la poubelle VERTE !",
     "canette": "Erreur : les canettes en métal se recyclent très bien, c'est poubelle JAUNE !",
     "yaourt": "Erreur : le pot de yaourt se recycle de mieux en mieux mais par défaut, ici c'est la poubelle BLEUE !",
-    "banane": "Erreur : la peau de banane est organique. Sans compost, elle va dans la poubelle BLEUE !"
-}
-
-
-SUCCESS_MESSAGES = {
-    "Verte": "Bravo ! Le verre se recycle à l'infini dans la poubelle verte.",
-    "Jaune": "Super ! Les emballages (plastique, métal, carton) vont dans la poubelle jaune.",
-    "Bleue": "Bien joué ! Les autres déchets vont dans la poubelle grise/bleue."
-}
-
-FAILURE_MESSAGES = {
-    "bouteilleverre": "Erreur : le verre est recyclable à l'infini. Il doit aller dans la poubelle VERTE !",
-    "canette": "Erreur : les canettes en métal se recyclent très bien, c'est poubelle JAUNE !",
-    "yaourt": "Erreur : le pot de yaourt se recycle de mieux en mieux mais par défaut, ici c'est la poubelle BLEUE !",
-    "banane": "Erreur : la peau de banane est organique. Sans compost, elle va dans la poubelle BLEUE !"
+    "banane": "Erreur : la peau de banane est organique. Sans compost, elle va dans la poubelle BLEUE !",
+    "chaussure": "Erreur : les chaussures usagées ne vont pas au recyclage classique, donc ici poubelle BLEUE !",
+    "sacplastique": "Erreur : les sacs plastiques sont des emballages, direction poubelle JAUNE !",
+    "tubedentifrice": "Erreur : le tube de dentifrice est un emballage plastique, direction poubelle JAUNE !"
 }
 
 
@@ -37,45 +26,28 @@ class Bin(pygame.sprite.Sprite):
         self.color_name = color_name
         self.base_color = rect_color
         
-        # Créer une poubelle plus stylisée
-        width, height = 120, 160
-        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        
-        # Corps de la poubelle avec gradient
-        for i in range(height - 20):
-            ratio = i / (height - 20)
-            color = tuple(max(0, int(c * (0.7 + 0.3 * ratio))) for c in rect_color[:3])
-            pygame.draw.line(self.image, color, (10, 20 + i), (width - 10, 20 + i))
-        
-        # Couvercle
-        pygame.draw.ellipse(self.image, tuple(min(255, c + 30) for c in rect_color[:3]), 
-                          (5, 10, width - 10, 25))
-        pygame.draw.ellipse(self.image, (50, 50, 50), (5, 10, width - 10, 25), 2)
-        
-        # Contour
-        pygame.draw.rect(self.image, (50, 50, 50), (10, 20, width - 20, height - 25), 3, border_radius=5)
-        
-        # Symbole de recyclage stylisé
-        symbol_colors = {
-            "Verte": "♻",
-            "Jaune": "📦",
-            "Bleue": "🗑"
-        }
-        font = pygame.font.Font(None, 48)
-        symbol = font.render(symbol_colors.get(color_name, "?"), True, (255, 255, 255))
-        symbol_rect = symbol.get_rect(center=(width // 2, height // 2 + 10))
-        self.image.blit(symbol, symbol_rect)
-        
-        # Label
-        label_font = pygame.font.Font(None, 28)
-        label = label_font.render(color_name, True, (255, 255, 255))
-        label_rect = label.get_rect(center=(width // 2, height - 15))
-        
-        # Fond du label
-        label_bg = pygame.Surface((label.get_width() + 10, label.get_height() + 4), pygame.SRCALPHA)
-        label_bg.fill((0, 0, 0, 150))
-        self.image.blit(label_bg, (label_rect.x - 5, label_rect.y - 2))
-        self.image.blit(label, label_rect)
+        from utils import load_texture
+        img = load_texture("PoubelleTri.png")
+        if img:
+            w, h = img.get_size()
+            scale = min(120.0 / max(1, w), 160.0 / max(1, h))
+            scaled = pygame.transform.smoothscale(img, (int(w*scale), int(h*scale)))
+            
+            self.image = scaled.copy()
+            if color_name != "Verte":
+                self.image.lock()
+                for x in range(self.image.get_width()):
+                    for y in range(self.image.get_height()):
+                        c = self.image.get_at((x, y))
+                        if c.a > 0:
+                            if color_name == "Jaune":
+                                self.image.set_at((x, y), (c.g, c.g, c.b, c.a))
+                            elif color_name == "Bleue":
+                                self.image.set_at((x, y), (c.r, c.b, c.g, c.a))
+                self.image.unlock()
+        else:
+            self.image = pygame.Surface((120, 160))
+            self.image.fill(rect_color)
 
         self.rect = self.image.get_rect(midbottom=position)
         self.hover = False
@@ -194,10 +166,26 @@ class SortingLevel:
             
             # Message de feedback stylisé
             feedback_font = pygame.font.Font(None, 42)
-            msg_surf = feedback_font.render(self.feedback_msg, True, self.feedback_color)
+            
+            words = self.feedback_msg.split(' ')
+            lines = []
+            curr_line = []
+            for word in words:
+                if feedback_font.size(' '.join(curr_line + [word]))[0] > SCREEN_WIDTH - 80:
+                    lines.append(' '.join(curr_line))
+                    curr_line = [word]
+                else:
+                    curr_line.append(word)
+            if curr_line:
+                lines.append(' '.join(curr_line))
+                
+            line_surfs = [feedback_font.render(line, True, self.feedback_color) for line in lines]
             
             # Fond du message
-            msg_bg = pygame.Surface((msg_surf.get_width() + 40, msg_surf.get_height() + 20), pygame.SRCALPHA)
+            total_height = sum(surf.get_height() for surf in line_surfs) + (len(line_surfs)-1)*5
+            max_width = max(surf.get_width() for surf in line_surfs)
+            
+            msg_bg = pygame.Surface((max_width + 40, total_height + 20), pygame.SRCALPHA)
             bg_color = (0, 100, 0, 180) if self.feedback_color[1] > 200 else (100, 0, 0, 180)
             msg_bg.fill(bg_color)
             pygame.draw.rect(msg_bg, self.feedback_color, msg_bg.get_rect(), 3, border_radius=10)
@@ -205,7 +193,11 @@ class SortingLevel:
             msg_x = SCREEN_WIDTH // 2 - msg_bg.get_width() // 2
             msg_y = SCREEN_HEIGHT // 2 - 120
             self.display_surface.blit(msg_bg, (msg_x, msg_y))
-            self.display_surface.blit(msg_surf, (msg_x + 20, msg_y + 10))
+            
+            current_y = msg_y + 10
+            for line_surf in line_surfs:
+                self.display_surface.blit(line_surf, (SCREEN_WIDTH // 2 - line_surf.get_width() // 2, current_y))
+                current_y += line_surf.get_height() + 5
             
             if self.feedback_timer <= 0:
                 self.current_trash.kill()
@@ -342,7 +334,7 @@ class SortingLevel:
         sim_x, sim_y = float(start_x), float(start_y)
         sim_vx, sim_vy = vx, vy
         
-        for i in range(40):
+        for i in range(12):
             dt = 0.03
             sim_vy += gravity * dt
             sim_x += sim_vx * dt
@@ -403,3 +395,50 @@ class SortingLevel:
         self.display_surface.blit(shadow_surf, (title_x + 3, y_pos + 3))
         self.display_surface.blit(title_surf, (title_x, y_pos))
 
+if __name__ == "__main__":
+    import sys
+    from settings import TITLE
+    
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption(TITLE + " - Debug Sorting Level")
+    
+    class DummyGame:
+        def __init__(self):
+            self.score = 0
+            self.victory_sounds = []
+            
+        def change_state(self, state):
+            if state == 'menu':
+                print("DEBUG: Fin du triage (retour au menu simulé). Fermeture.")
+                pygame.quit()
+                sys.exit()
+                
+    from utils import load_texture
+    
+    trash_files = ["banane.png", "canette.png", "BouteilleVerre.png"]
+    dummy_trash = []
+    for f in trash_files:
+        name = f.split('.')[0]
+        tex = load_texture(f"Déchets/{f}")
+        if not tex:
+            tex = pygame.Surface((40, 40))
+            tex.fill((150, 150, 150))
+        dummy_trash.append((name, tex))
+        
+    game = DummyGame()
+    level = SortingLevel(screen, dummy_trash * 2) # On met plus d'objets pour jouer
+    clock = pygame.time.Clock()
+    
+    while True:
+        dt = clock.tick(60) / 1000.0
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+                
+        # Fond (au cas où il n'est pas complètement redessiné par le niveau)
+        screen.fill((0, 0, 0))
+        
+        level.run(dt, game)
+        pygame.display.update()
