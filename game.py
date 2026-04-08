@@ -8,22 +8,53 @@ from utils import load_texture, load_sound, play_music
 from particle_system import ParticleEmitter
 import random
 
+"""Guide principal du jeu SpaceK-tcher.
+
+Ce module coordonne les différents écrans/états du jeu:
+- menu principal animé
+- gameplay (niveaux 1 et 2)
+- écran de tri (niveau 3 didactique)
+- game over
+
+Le rôle de la classe Game est d'agir comme une mini machine à états,
+de gérer les transitions visuelles (fade), la musique, le score global,
+et la progression entre niveaux.
+"""
+
 class Game:
     def __init__(self, screen):
+        """Initialise le contrôleur global du jeu.
+
+        Args:
+            screen: Surface pygame principale (fenêtre de rendu).
+
+        Cette méthode prépare:
+        - les niveaux jouables (1: débris, 2: mixte)
+        - l'état initial (menu)
+        - les assets communs (logo, sons)
+        - les effets visuels du menu
+        - le système de transition fade-in/fade-out
+        """
         self.screen = screen
+        # Les deux premiers niveaux du jeu (le niveau de tri sera créé à la volée).
         self.levels = [
             Level(self.screen, level_type='debris', end_y=-16000),
             Level(self.screen, level_type='mixed')
         ]
         self.current_level_index = 0
 
+        # États possibles: 'menu', 'playing', 'sorting_level', 'game_over'
         self.state = 'menu'
+        # Score global transporté à travers tous les niveaux.
         self.score = 0
+        # Liste des déchets collectés en niveau 2, injectée ensuite en niveau 3.
         self.collected_trash = []
+        # Meilleur score persistant (fichier local score.txt).
         self.high_score = self.load_high_score()
 
         self.font = pygame.font.Font(None, 48)
         self.logo = load_texture('logo.png', scale_to=(350, 350))
+        # Scène du niveau 3, instanciée uniquement quand nécessaire.
         self.sorting_scene = None
 
         # Sons
@@ -58,6 +89,11 @@ class Game:
         play_music('Project_27 SK MENU.wav')
 
     def load_high_score(self):
+        """Charge le meilleur score depuis le disque.
+
+        Returns:
+            int: meilleur score connu, ou 0 si absent/invalide.
+        """
         if os.path.exists('score.txt'):
             with open('score.txt', 'r') as f:
                 try:
@@ -67,35 +103,58 @@ class Game:
         return 0
 
     def save_high_score(self):
+        """Sauvegarde le score actuel si c'est un nouveau record."""
         if self.score > self.high_score:
             self.high_score = self.score
             with open('score.txt', 'w') as f:
                 f.write(str(self.high_score))
 
     def change_state(self, new_state):
+        """Demande un changement d'état avec transition visuelle.
+
+        Le changement effectif est différé jusqu'à la fin du fade-out,
+        pour éviter une coupure brutale entre deux scènes.
+        """
         # Transition avec fade
         self.fading_out = True
         self.fade_target_state = new_state
     
     def _apply_state_change(self, new_state):
-        """Applique le changement d'état après le fade out"""
+        """Applique le changement d'état après le fade-out.
+
+        C'est ici que l'on exécute les effets secondaires associés à un état:
+        musique, reset de timers, création de la scène de tri, etc.
+        """
         self.state = new_state
         if new_state == 'game_over':
+            # En game over, on fige la progression et on sauvegarde le record.
             self.save_high_score()
             pygame.mixer.music.stop()
         elif new_state == 'sorting_level':
+            # Copier la liste pour éviter les effets de bord.
             self.sorting_scene = SortingLevel(self.screen, self.collected_trash[:])
             play_music('Project_27 SK NV3.wav')
         elif new_state == 'menu':
+            # Retour menu: persistance record + reset animation menu.
             self.save_high_score()
             self.menu_time = 0.0
             play_music('Project_27 SK MENU.wav')
 
     @property
     def current_level(self):
+        """Raccourci vers l'objet Level actuellement joué."""
         return self.levels[self.current_level_index]
 
     def draw_menu(self, dt):
+        """Dessine et anime l'écran du menu principal.
+
+        Contient:
+        - fond dégradé + étoiles scintillantes
+        - particules d'ambiance
+        - logo animé (pulsation/rotation)
+        - bouton JOUER avec effet de survol
+        - affichage du meilleur score
+        """
         self.menu_time += dt
         
         # Fond avec gradient
@@ -193,6 +252,11 @@ class Game:
         self.screen.blit(hs_surf, (15, 12))
 
     def draw_game_over(self, dt):
+        """Dessine l'écran de fin de partie.
+
+        L'écran met l'accent sur la défaite avec une ambiance sombre,
+        un titre vibrant, le score final et une instruction de retour menu.
+        """
         # Fond semi-transparent avec effet
         self.screen.fill((20, 10, 10))
         
@@ -229,7 +293,14 @@ class Game:
         self.screen.blit(inst_surf, inst_rect)
 
     def handle_menu_input(self):
+        """Gère les entrées utilisateur depuis le menu.
+
+        Déclenche le démarrage d'une nouvelle partie via:
+        - ESPACE
+        - clic sur le bouton JOUER
+        """
         if self.fading_out:
+            # Pendant une transition sortante, ignorer les nouvelles entrées.
             return
             
         keys = pygame.key.get_pressed()
@@ -257,6 +328,7 @@ class Game:
             self.fade_target_state = 'playing'
 
     def handle_game_over_input(self):
+        """Gère les entrées de l'écran game over (retour menu)."""
         if self.fading_out:
             return
         keys = pygame.key.get_pressed()
@@ -295,6 +367,17 @@ class Game:
             self.screen.blit(fade_surf, (0, 0))
 
     def run(self, dt):
+        """Boucle principale de haut niveau (appelée chaque frame).
+
+        Architecture:
+        1. Mettre à jour les transitions de fade.
+        2. Router vers la scène active selon l'état.
+        3. Gérer les changements de niveau/état si un niveau se termine.
+        4. Dessiner l'overlay de fade par-dessus le rendu final.
+
+        Args:
+            dt: Delta time en secondes depuis la frame précédente.
+        """
         # Mise à jour des transitions
         self._update_fade(dt)
         
@@ -304,14 +387,14 @@ class Game:
         elif self.state == 'playing':
             level_status = self.current_level.run(dt, self)
             if level_status == "completed":
-                # Keep track of old player state
+                # Mémoriser l'état du joueur pour une transition fluide entre niveaux.
                 old_player = self.current_level.player
                 pos = (old_player.position.x, old_player.position.y)
                 vel = (old_player.velocity.x, old_player.velocity.y)
                 
                 self.current_level_index += 1
                 if self.current_level_index >= len(self.levels):
-                    # Finished all levels
+                    # Les niveaux 1/2 sont terminés: aller au tri si déchets collectés.
                     if len(self.collected_trash) > 0:
                         self.change_state("sorting_level")
                     else:
@@ -320,10 +403,8 @@ class Game:
                     if self.current_level_index == 1:
                         play_music('Project_27 SK NV2.wav')
                     
-                    # Initialize the next level right now manually to pass player state
+                    # Initialiser le niveau suivant en réinjectant l'état physique du joueur.
                     next_level = self.levels[self.current_level_index]
-                    # We actually need to re-initialize it to pass the params, or just update its player.
-                    # It's cleaner to re-instantiate it here:
                     level_type = next_level.level_type
                     end_y = next_level.end_y
                     self.levels[self.current_level_index] = Level(self.screen, level_type=level_type, end_y=end_y, player_start_pos=pos, player_velocity=vel)
