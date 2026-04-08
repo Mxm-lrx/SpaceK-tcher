@@ -116,7 +116,11 @@ SpaceK-tcher/
 </p>
 
 ### L'Équipe de développement
-- **Maxime** (ou autres noms d'équipe) - *Développeur(s) principal(aux)*        
-- *(Vous pouvez ajouter ici d'autres membres ou contributeurs, graphistes, compositeurs audio)*
+- **Maxime**  - *Chef de Projet*    
+- **Kérywan** - *Dev & Struc.* 
+- **Matias** - *Chef Designer*
+- **Yoan** - *Ingé-Son*
+- **Enzo** - *Designer*
+- **Jules** - *Dev & Designer*
 
 > *Merci d'avoir joué à SpaceK'tcher et de contribuer à la propreté de notre galaxie !* 🌌
