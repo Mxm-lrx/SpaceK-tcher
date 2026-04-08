@@ -54,6 +54,7 @@ class Game:
         self.fading_in = True
         self.fading_out = False
         self.fade_target_state = None
+        self.input_cooldown = 0.0
 
         play_music('Project_27 SK MENU.wav')
 
@@ -73,9 +74,13 @@ class Game:
                 f.write(str(self.high_score))
 
     def change_state(self, new_state):
+        if self.fading_out and self.fade_target_state == new_state:
+            return
         # Transition avec fade
+        self.fading_in = False
         self.fading_out = True
         self.fade_target_state = new_state
+        self.input_cooldown = 0.5
     
     def _apply_state_change(self, new_state):
         """Applique le changement d'état après le fade out"""
@@ -229,7 +234,7 @@ class Game:
         self.screen.blit(inst_surf, inst_rect)
 
     def handle_menu_input(self):
-        if self.fading_out:
+        if self.fading_out or self.input_cooldown > 0:
             return
             
         keys = pygame.key.get_pressed()
@@ -257,7 +262,7 @@ class Game:
             self.fade_target_state = 'playing'
 
     def handle_game_over_input(self):
-        if self.fading_out:
+        if self.fading_out or self.input_cooldown > 0:
             return
         keys = pygame.key.get_pressed()
         mouse_pressed = pygame.mouse.get_pressed()
@@ -295,6 +300,9 @@ class Game:
             self.screen.blit(fade_surf, (0, 0))
 
     def run(self, dt):
+        if self.input_cooldown > 0:
+            self.input_cooldown -= dt
+            
         # Mise à jour des transitions
         self._update_fade(dt)
         

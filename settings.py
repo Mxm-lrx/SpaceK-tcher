@@ -13,8 +13,8 @@ TITLE = "SpaceK'tcher"
 # Poubelle Grise/Bleue : Ordures ménagères (non recyclables)
 TRASH_CATEGORIES = {
     "Verte": ["BouteilleVerre"],
-    "Jaune": ["canette"],
-    "Bleue": ["Yaourt", "banane"]
+    "Jaune": ["canette", "SacPlastique", "TubeDentifrice"],
+    "Bleue": ["Yaourt", "banane", "Chaussure"]
 }
 
 # On définit les couleurs utilisées dans le jeu (en format RGB)
