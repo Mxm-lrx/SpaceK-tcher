@@ -194,7 +194,7 @@ class Game:
         hs_bg = pygame.Surface((200, 40), pygame.SRCALPHA)
         hs_bg.fill((0, 0, 0, 100))
         self.screen.blit(hs_bg, (5, 5))
-        hs_surf = small_font.render(f'🏆 High Score: {self.high_score}', True, (255, 215, 0))
+        hs_surf = small_font.render(f'High Score: {self.high_score}', True, (255, 215, 0))
         self.screen.blit(hs_surf, (15, 12))
 
     def draw_game_over(self, dt):
