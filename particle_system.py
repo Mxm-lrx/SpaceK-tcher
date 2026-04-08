@@ -1,6 +1,30 @@
 """
-Système de particules avancé pour SpaceK'tcher
-Gère les trainées de propulsion, étoiles filantes, effets de collecte et explosions
+========================================================================
+                    SYSTÈME DE PARTICULES - SpaceK'tcher
+========================================================================
+
+Ce module gère tous les EFFETS VISUELS du jeu dans l'espace:
+  1. PARTICULES: Petits éléments graphiques avec physique (flammes, étincelles, débris)
+  2. ÉTOILES FILANTES: Étoiles qui traversent le ciel avec une traînée lumineuse
+  3. OMBRAGE D'ÉCRAN: Tremblement lors d'explosions pour l'impact dramatique
+  4. DÉCOR SPATIAL: Nébuleuses, planètes, comètes pour l'ambiance
+  5. EFFETS DE MOUVEMENT: Lignes de vitesse, poussière cosmique
+  6. SOLEIL: Avec effet de lens flare (reflets lumineux)
+
+ARCHITECTURE:
+- Classes de base: Particle (élément simple), GlowParticle (avec lueur)
+- Émetteur central: ParticleEmitter crée/gère les particules
+- Gestionnaires spécialisés: ShootingStarManager, PlanetManager, etc.
+- Effets composites: Planètes complexes avec lunes et anneaux
+
+UTILISATION TYPIQUE:
+1. main.py crée une instance ParticleEmitter + les gestionnaires
+2. Lors d'événements (explosion, collecte, déplacement), on appelle emit_*()
+3. Chaque frame: update(dt) puis draw(surface, camera_x, camera_y)
+
+Le système utilise la PARALLAXE pour la profondeur: les objets lointains 
+(nébuleuses, planètes) bougent moins quand la caméra se déplace.
+========================================================================
 """
 import pygame
 import math
@@ -9,11 +33,28 @@ from settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
 
 class Particle:
-    """Particule individuelle avec physique et rendu"""
+    """Classe de base pour une particule (petit élément graphique avec physique).
+    
+    Une particule est un petit objet qui bouge selon sa vélocité et la gravité,
+    puis s'efface petit à petit jusqu'à disparaître.
+    Utilisé pour: les flammes des fusées, les étincelles, les débris d'explosions, etc.
+    """
     __slots__ = ('x', 'y', 'vx', 'vy', 'life', 'max_life', 'size', 'color', 
                  'alpha', 'gravity', 'shrink', 'fade')
     
     def __init__(self, x, y, vx, vy, life, size, color, gravity=0, shrink=True, fade=True):
+        """Initialise une particule.
+        
+        Args:
+            x, y: Position initiale
+            vx, vy: Vélocité (direction et vitesse du mouvement)
+            life: Durée de vie en secondes
+            size: Taille du point en pixels
+            color: Couleur RGB (ex: (255, 100, 50) pour l'orange)
+            gravity: Accélération vers le bas (pour effet réaliste)
+            shrink: Si True, la particule rétrécit en disparaissant
+            fade: Si True, la particule s'efface progressivement
+        """
         self.x = x
         self.y = y
         self.vx = vx
@@ -28,44 +69,71 @@ class Particle:
         self.fade = fade
     
     def update(self, dt):
+        """Met à jour la position et l'état de la particule.
+        
+        Args:
+            dt: Delta time (temps écoulé depuis la dernière frame en secondes)
+            
+        Returns:
+            True si la particule est toujours vivante, False si elle doit être supprimée
+        """
+        # Appliquer la vélocité pour déplacer la particule
         self.x += self.vx * dt
         self.y += self.vy * dt
+        
+        # Appliquer la gravité (accélère vers le bas)
         self.vy += self.gravity * dt
         self.life -= dt
         
-        # Calcul du ratio de vie restante
+        # Calcul du ratio de vie restante (0 = morte, 1 = nouvelle)
         life_ratio = max(0, self.life / self.max_life)
         
+        # Faire disparaître progressivement (fade out)
         if self.fade:
-            self.alpha = int(255 * life_ratio)
+            self.alpha = int(255 * life_ratio)  # Transparence 0-255
+        
+        # Faire rétrécir progressivement
         if self.shrink:
             self.size = max(1, self.size * (0.5 + 0.5 * life_ratio))
         
         return self.life > 0
     
     def draw(self, surface, camera_x=0, camera_y=0):
+        """Dessine la particule à l'écran.
+        
+        Args:
+            surface: Surface pygame où dessiner (l'écran)
+            camera_x, camera_y: Position de la caméra pour l'effet de déplacement
+        """
+        # Convertir la position mondiale en position écran (soustraction du décalage caméra)
         screen_x = int(self.x - camera_x)
         screen_y = int(self.y - camera_y)
         
-        # Vérifier si visible
+        # Optimisation: ne pas dessiner si hors de l'écran
         if not (-self.size < screen_x < SCREEN_WIDTH + self.size and 
                 -self.size < screen_y < SCREEN_HEIGHT + self.size):
             return
         
         if self.alpha < 255:
-            # Surface avec transparence pour l'effet de fade
+            # Si la particule s'efface (fade), créer une surface avec transparence (SRCALPHA)
+            # Cela permet à la couleur de devenir progressivement invisible
             size_int = max(1, int(self.size * 2))
             particle_surf = pygame.Surface((size_int, size_int), pygame.SRCALPHA)
-            color_with_alpha = (*self.color[:3], self.alpha)
+            color_with_alpha = (*self.color[:3], self.alpha)  # Ajouter alpha à la couleur
             pygame.draw.circle(particle_surf, color_with_alpha, 
                              (size_int // 2, size_int // 2), max(1, int(self.size)))
             surface.blit(particle_surf, (screen_x - size_int // 2, screen_y - size_int // 2))
         else:
+            # Sinon, simplement dessiner le cercle coloré sans transparence (plus rapide)
             pygame.draw.circle(surface, self.color, (screen_x, screen_y), max(1, int(self.size)))
 
 
 class GlowParticle(Particle):
-    """Particule avec effet de lueur (glow)"""
+    """Particule avec effet de lueur (glow) - Version améliorée de Particle.
+    
+    Ajoute un effet de lumière rayonnante autour de la particule.
+    Utilisé pour: les flammes de fusées, les étincelles brillantes, etc.
+    """
     __slots__ = ('glow_size', 'glow_color')
     
     def __init__(self, x, y, vx, vy, life, size, color, glow_color=None, gravity=0):
@@ -102,7 +170,14 @@ class GlowParticle(Particle):
 
 
 class ParticleEmitter:
-    """Émetteur de particules avec différents patterns"""
+    """Gestionnaire central qui crée et met à jour des particules.
+    
+    Cet émetteur propose différents "patterns" de particules pour différents effets:
+    - Thrust: flammes de propulsion de la fusée
+    - Sparkle: étincelles lors de la collecte d'objets
+    - Explosion: effet spectaculaire d'explosion
+    - Trail: trainée légère (pour les mouvements rapides)
+    """
     
     def __init__(self, max_particles=500):
         self.particles = []
@@ -116,7 +191,14 @@ class ParticleEmitter:
             particle.draw(surface, camera_x, camera_y)
     
     def emit_thrust(self, x, y, angle, intensity=1.0, boost=False):
-        """Émet des particules de propulsion de fusée"""
+        """Crée des particules de flamme derrière la fusée pour donner l'effet de propulsion.
+        
+        Args:
+            x, y: Position de la fusée
+            angle: Direction de la fusée (0°=haut, 90°=droite)
+            intensity: Force de la propulsion (1.0 = normal, >1.0 = boost)
+            boost: Si True, ajoute plus de flammes (effet turbo)
+        """
         if len(self.particles) >= self.max_particles:
             return
         
@@ -154,13 +236,20 @@ class ParticleEmitter:
             self.particles.append(particle)
     
     def emit_sparkle(self, x, y, color=(255, 255, 100), count=15):
-        """Émet des étincelles lors de la collecte d'objets"""
+        """Crée des petites étincelles brillantes lors de la collecte d'un objet.
+        
+        Args:
+            x, y: Position de l'objet collecté
+            color: Couleur des étincelles (RGB)
+            count: Nombre d'étincelles à créer
+        """
         if len(self.particles) + count > self.max_particles:
-            count = self.max_particles - len(self.particles)
+            count = self.max_particles - len(self.particles)  # Garder sous la limite
         
         for _ in range(count):
+            # Générer une direction aléatoire (360 degrés = math.tau radians)
             angle = random.uniform(0, math.tau)
-            speed = random.uniform(80, 200)
+            speed = random.uniform(80, 200)  # Vitesses variées pour un aspect naturel
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
@@ -181,56 +270,69 @@ class ParticleEmitter:
             self.particles.append(particle)
     
     def emit_explosion(self, x, y, count=40):
-        """Émet une explosion spectaculaire"""
-        if len(self.particles) + count > self.max_particles:
-            count = max(10, self.max_particles - len(self.particles))
+        """Crée une grosse explosion avec flammes et débris.
         
+        Args:
+            x, y: Centre de l'explosion
+            count: Nombre de petites particules à créer (+ débris automatiques)
+        """
+        if len(self.particles) + count > self.max_particles:
+            count = max(10, self.max_particles - len(self.particles))  # Garder au moins quelques particules
+        
+        # Première phase: petites particules brillantes (glow) = le "feu" de l'explosion
         colors = [
-            (255, 100, 50),   # Orange
+            (255, 100, 50),   # Orange vif
             (255, 200, 50),   # Jaune
             (255, 50, 50),    # Rouge
-            (255, 150, 100),  # Orange clair
+            (255, 150, 100),  # Orange pâle
             (200, 200, 200),  # Gris (fumée)
         ]
         
         for i in range(count):
-            angle = random.uniform(0, math.tau)
-            speed = random.uniform(100, 350)
+            angle = random.uniform(0, math.tau)  # Direction aléatoire (omni-directionnelle)
+            speed = random.uniform(100, 350)  # Vitesses variées
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
             color = random.choice(colors)
-            size = random.uniform(4, 12)
-            life = random.uniform(0.4, 1.2)
+            size = random.uniform(4, 12)  # Plus grosses que les flammes normales
+            life = random.uniform(0.4, 1.2)  # Durée de vie plus longue
             
             particle = GlowParticle(
                 x + random.uniform(-20, 20),
                 y + random.uniform(-20, 20),
                 vx, vy, life, size, color,
-                gravity=80
+                gravity=80  # Les particules tombent progressivement
             )
             self.particles.append(particle)
         
-        # Ajouter des débris plus gros
+        # Deuxième phase: débris plus gros et lourds qui tombent
         for _ in range(count // 4):
             angle = random.uniform(0, math.tau)
-            speed = random.uniform(50, 150)
+            speed = random.uniform(50, 150)  # Plus lents (sont plus lourds)
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
+            # Les débris ne rétrécissent pas (solid rock) mais s'effacent progressivement
             particle = Particle(
                 x, y, vx, vy,
                 life=random.uniform(0.8, 1.5),
-                size=random.uniform(6, 15),
-                color=(100, 100, 100),
-                gravity=200,
-                shrink=False,
-                fade=True
+                size=random.uniform(6, 15),  # Petits "rochers"
+                color=(100, 100, 100),  # Gris pierre
+                gravity=200,  # Gravité forte = tombent vite
+                shrink=False,  # Les rochers ne rétrécissent pas
+                fade=True  # mais disparaissent
             )
             self.particles.append(particle)
     
     def emit_trail(self, x, y, vx, vy, color=(200, 200, 255)):
-        """Émet une trainée légère (pour les étoiles filantes ou objets rapides)"""
+        """Crée une fine trainée derrière un objet en mouvement rapide.
+        
+        Args:
+            x, y: Position actuelle de l'objet
+            vx, vy: Vélocité de l'objet (utilisée pour calculer la trainée)
+            color: Couleur de la trainée
+        """
         if len(self.particles) >= self.max_particles:
             return
         
@@ -252,7 +354,11 @@ class ParticleEmitter:
 
 
 class ShootingStar:
-    """Étoile filante avec trainée lumineuse"""
+    """Représente une étoile filante qui traverse l'écran avec une trainée lumineuse.
+    
+    C'est un élément cosmétique du décor qui apparaît et disparaît dans le ciel.
+    Donne une ambiance spatio-cosmique au jeu.
+    """
     
     def __init__(self, camera_x, camera_y):
         # Spawn à l'extérieur de l'écran
@@ -333,7 +439,11 @@ class ShootingStar:
 
 
 class ShootingStarManager:
-    """Gestionnaire d'étoiles filantes"""
+    """Gère la création et la mise à jour des étoiles filantes.
+    
+    Crée de nouvelles étoiles filantes aléatoirement à un taux contrôlé,
+    et les supprime quand elles sortent de l'écran.
+    """
     
     def __init__(self, spawn_rate=0.3):
         self.stars = []
@@ -342,20 +452,22 @@ class ShootingStarManager:
         self.max_stars = 5
     
     def update(self, dt, camera_x, camera_y, in_space=True):
+        # Ne pas créer d'étoiles si on n'est pas en espace (économiser les ressources)
         if not in_space:
             self.stars.clear()
             return
         
-        # Spawn de nouvelles étoiles
+        # Système de spawn avec timer intelligent: crée des étoiles à un taux constant
         self.spawn_timer += dt
-        spawn_interval = 1.0 / self.spawn_rate
+        spawn_interval = 1.0 / self.spawn_rate  # Ex: spawn_rate=0.3 -> spawn tous les 3.33 sec
         
+        # Créer de nouvelles étoiles si le timer a dépassé l'intervalle
         while self.spawn_timer >= spawn_interval and len(self.stars) < self.max_stars:
-            self.spawn_timer -= spawn_interval
-            if random.random() < 0.6:  # 60% de chance de spawn
+            self.spawn_timer -= spawn_interval  # Réinitialiser le timer
+            if random.random() < 0.6:  # 60% de chance: évite une création trop régulière
                 self.stars.append(ShootingStar(camera_x, camera_y))
         
-        # Update des étoiles
+        # Mettre à jour toutes les étoiles et garder seulement celles qui vivent encore
         self.stars = [star for star in self.stars if star.update(dt)]
     
     def draw(self, surface, camera_x, camera_y):
@@ -364,7 +476,10 @@ class ShootingStarManager:
 
 
 class ScreenShake:
-    """Gestionnaire de tremblement d'écran"""
+    """Crée un effet de tremblement d'écran lors d'explosions ou de chocs.
+    
+    Quand l'écran tremble, la caméra oscille rapidement créant un effet dramatique.
+    """
     
     def __init__(self):
         self.intensity = 0
@@ -373,28 +488,46 @@ class ScreenShake:
         self.offset_y = 0
     
     def trigger(self, intensity=15, duration=0.3):
-        """Déclenche un tremblement"""
+        """Déclenche un tremblement d'écran.
+        
+        Args:
+            intensity: Force du tremblement en pixels (plus grand = plus violent)
+            duration: Durée du tremblement en secondes
+        """
         self.intensity = intensity
         self.duration = duration
     
     def update(self, dt):
+        """Met à jour le tremblement (diminution progressive)."""
         if self.duration > 0:
-            self.duration -= dt
-            # Diminution progressive de l'intensité
+            self.duration -= dt  # Compte à rebours de la durée
+            # L'intensité DIMINUE graduellement quand le temps diminue
+            # Au début: beaucoup d'offset; À la fin: presque d'offset = aucun tremblement
             current_intensity = self.intensity * (self.duration / 0.3)
+            # Générer un offset aléatoire pour créer l'effet de tremblement
             self.offset_x = random.uniform(-current_intensity, current_intensity)
             self.offset_y = random.uniform(-current_intensity, current_intensity)
         else:
+            # Zéro offset quand terminé = écran immobile
             self.offset_x = 0
             self.offset_y = 0
     
     def apply(self, camera_x, camera_y):
-        """Retourne les coordonnées de caméra modifiées"""
+        """Applique le tremblement aux coordonnées de la caméra.
+        
+        Returns:
+            Tuple (camera_x_modifiée, camera_y_modifiée) avec l'offset du tremblement
+        """
         return camera_x + self.offset_x, camera_y + self.offset_y
 
 
 class Nebula:
-    """Nébuleuse décorative en arrière-plan"""
+    """Représente une nébuleuse (nuage de gaz spatial) comme élément de décor.
+    
+    Les nébuleuses sont des éléments statiques avec un effet de parallaxe
+    (elles bougent moins vite que les objets au premier plan) pour donner
+    une impression de profondeur au décor spatial.
+    """
     
     def __init__(self, x, y, size, color):
         self.x = x
@@ -404,7 +537,7 @@ class Nebula:
         self.surface = self._generate_surface()
     
     def _generate_surface(self):
-        """Génère une surface de nébuleuse avec effet de gradient circulaire"""
+        """Génère l'image de la nébuleuse avec dégradé circulaire pour l'effet de profondeur."""
         surf_size = int(self.size * 2)
         surface = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
         
@@ -419,26 +552,38 @@ class Nebula:
         return surface
     
     def draw(self, surface, camera_x, camera_y, parallax_factor=0.1):
-        """Dessine la nébuleuse avec un effet de parallaxe"""
+        """Dessine la nébuleuse à l'écran avec parallaxe.
+        
+        La parallaxe fait que la nébuleuse bouge plus lentement que les objets
+        pour donner l'impression qu'elle est loin en arrière-plan.
+        """
+        # PARALLAXE: multiplier par un facteur < 1 pour réduire le mouvement
+        # Exemple: si camera bouge de 100px, nébuleuse bouge de 10px seulement
         screen_x = int(self.x - camera_x * parallax_factor)
         screen_y = int(self.y - camera_y * parallax_factor)
         
-        # Wrap around pour que les nébuleuses restent visibles
+        # Wrap-around: faire boucler les nébuleuses pour un ciel infini
+        # Quand une nébuleuse sort d'un côté, elle réapparaît de l'autre côté
         screen_x = screen_x % (SCREEN_WIDTH + self.size * 2) - self.size
         screen_y = screen_y % (SCREEN_HEIGHT + self.size * 2) - self.size
         
+        # Utiliser BLEND_ADD pour un effet de fusion lumineuse (additive blending)
         surface.blit(self.surface, (screen_x, screen_y), special_flags=pygame.BLEND_ADD)
 
 
 class NebulaManager:
-    """Gestionnaire de nébuleuses - Version simplifiée, les planètes sont gérées séparément"""
+    """Gère toutes les nébuleuses du ciel.
+    
+    Crée une collection de nébuleuses avec des tailles et couleurs variées
+    pour remplir l'arrière-plan spatial de manière esthétique.
+    """
     
     def __init__(self):
         self.nebulae = []
         self._generate_nebulae()
     
     def _generate_nebulae(self):
-        """Génère des nébuleuses procédurales subtiles"""
+        """Crée plusieurs nébuleuses avec positions, tailles et couleurs aléatoires."""
         colors = [
             (60, 30, 100),   # Violet sombre
             (30, 60, 100),   # Bleu sombre
@@ -454,7 +599,12 @@ class NebulaManager:
             self.nebulae.append(Nebula(x, y, size, color))
     
     def draw(self, surface, camera_x, camera_y, space_transition=1.0):
-        """Dessine les nébuleuses avec intensité basée sur la transition vers l'espace"""
+        """Dessine toutes les nébuleuses.
+        
+        Args:
+            space_transition: Valeur 0-1 indiquant si on est en espace (1) ou sur terre (0)
+                             Les nébuleuses ne s'affichent qu'en espace
+        """
         if space_transition < 0.3:
             return
         
@@ -463,7 +613,13 @@ class NebulaManager:
 
 
 class Planet:
-    """Planète réaliste avec ombrage, atmosphère et détails"""
+    """Représente une planète avec textures réalistes, atmosphère, lunes et anneaux.
+    
+    Les planètes sont des éléments visuels complexes qui tournent sur elles-mêmes
+    et peuvent avoir des lunes en orbite. Différents types de planètes
+    (rocheuses, géantes gazeuses, glaciales, etc.) ont des apparences distinctes.
+    Les planètes créent l'ambiance visuelle du monde spatial.
+    """
     
     def __init__(self, base_x, base_y, radius, planet_type="rocky"):
         self.base_x = base_x
@@ -483,12 +639,13 @@ class Planet:
         # Lunes optionnelles
         self.moons = []
         if random.random() < 0.4 and radius > 60:
-            num_moons = random.randint(1, 3)
+            # 40% de probabilité: les lunes rendent la planète plus intéressante
+            num_moons = random.randint(1, 3)  # 1 à 3 lunes
             for i in range(num_moons):
-                moon_dist = radius * random.uniform(1.5, 2.5)
+                moon_dist = radius * random.uniform(1.5, 2.5)  # Distance d'orbite
                 moon_size = random.randint(5, max(6, int(radius * 0.2)))
-                moon_speed = random.uniform(0.2, 0.8)
-                moon_phase = random.uniform(0, math.tau)
+                moon_speed = random.uniform(0.2, 0.8)  # Vitesse d'orbite
+                moon_phase = random.uniform(0, math.tau)  # Position initiale dans l'orbite
                 self.moons.append({
                     'dist': moon_dist,
                     'size': moon_size,
@@ -508,7 +665,10 @@ class Planet:
             self.ring_tilt = random.uniform(0.2, 0.5)
     
     def _get_planet_colors(self):
-        """Retourne une palette de couleurs selon le type de planète"""
+        """Retourne une palette de couleurs adaptée au type de planète choisi.
+        
+        Chaque type de planète (rocheuse, gazeuse, glaciale, etc.) a ses propres couleurs.
+        """
         palettes = {
             "rocky": [
                 [(139, 90, 43), (160, 120, 80), (100, 70, 40)],     # Marron/rouille
@@ -536,7 +696,11 @@ class Planet:
         return random.choice(palette_list)
     
     def _generate_planet_surface(self):
-        """Génère la surface de la planète avec ombrage réaliste"""
+        """Génère la texture de la planète avec tous les détails visuels.
+        
+        Inclut: l'atmosphère, le corps principal, les cratères/détails,
+        l'ombrage réaliste (côté sombre) et les reflets (côté lumineux).
+        """
         size = int(self.radius * 2.5)  # Marge pour l'atmosphère
         surface = pygame.Surface((size, size), pygame.SRCALPHA)
         center = size // 2
@@ -630,7 +794,11 @@ class Planet:
                     pygame.draw.polygon(surface, self.colors[1], points)
     
     def _add_shading(self, surface, center):
-        """Ajoute un ombrage réaliste"""
+        """Ajoute une ombre progressif sur la moitié sombre de la planète.
+        
+        Simule l'effet de lumière venant d'une direction (coin sup-gauche)
+        pour donner un aspect 3D réaliste.
+        """
         # Créer un gradient d'ombre
         for r in range(int(self.radius), 0, -1):
             # Position relative au centre
@@ -645,7 +813,10 @@ class Planet:
                              (center + shade_offset, center + shade_offset), r)
     
     def _add_highlight(self, surface, center):
-        """Ajoute un reflet lumineux"""
+        """Ajoute un reflet blanc dans le coin éclairé de la planète.
+        
+        Cela améliore l'effet 3D en montrant où la lumière est réfléchie.
+        """
         highlight_x = center - int(self.radius * 0.4)
         highlight_y = center - int(self.radius * 0.4)
         highlight_r = int(self.radius * 0.25)
@@ -695,7 +866,13 @@ class Planet:
                 self._draw_moon(surface, screen_x, screen_y, moon, time)
     
     def _draw_rings(self, surface, x, y, behind=True):
-        """Dessine les anneaux de la planète"""
+        """Dessine les anneaux autour de certaines planètes (comme Saturne).
+        
+        Args:
+            behind: Si True, dessine la partie arrière (semi-transparente)
+                   Si False, dessine la partie avant (plus opaque)
+                   Cela permet à la planète de passer "devant" les anneaux
+        """
         ring_inner = int(self.radius * 1.3)
         ring_outer = int(self.radius * 2.0)
         
@@ -726,7 +903,10 @@ class Planet:
                            area=pygame.Rect(0, ring_height // 2, ring_width, ring_height // 2))
     
     def _draw_moon(self, surface, planet_x, planet_y, moon, time):
-        """Dessine une lune en orbite"""
+        """Dessine une lune en orbite autour de la planète.
+        
+        La lune tourne selon sa phase orbitale pour créer un mouvement continu.
+        """
         moon_x = planet_x + int(math.cos(moon['phase']) * moon['dist'])
         moon_y = planet_y + int(math.sin(moon['phase']) * moon['dist'] * 0.3)  # Orbite inclinée
         
@@ -743,31 +923,44 @@ class Planet:
 
 
 class PlanetManager:
-    """Gestionnaire de planètes"""
+    """Gère la création et l'affichage de toutes les planètes du jeu.
+    
+    Crée une collection variée de planètes de différents types,
+    les met à jour chaque frame, et les dessine à l'écran.
+    """
     
     def __init__(self):
         self.planets = []
         self._generate_planets()
     
     def _generate_planets(self):
-        """Génère une collection de planètes variées"""
+        """Crée plusieurs planètes de différents types répartis sur la carte.
+        
+        Génère: des planètes rocheuses, des géantes gazeuses, des planètes glaciales,
+        des planètes vivantes, des planètes de lave, chacune avec des tailles variées.
+        """
+        # Configuration: (type_de_planète, rayon_min, rayon_max, nombre_à_créer)
+        # Chaque tuple définit combien de planètes de ce type créer
         planet_configs = [
             # (type, min_radius, max_radius, count)
-            ("rocky", 30, 70, 4),
-            ("gas_giant", 80, 150, 2),
-            ("ice", 40, 80, 2),
-            ("earth_like", 50, 90, 1),
-            ("lava", 35, 60, 1),
+            ("rocky", 30, 70, 4),           # 4 petites planètes rocheuses (la Lune, Mars)
+            ("gas_giant", 80, 150, 2),     # 2 GRANDES géantes gazeuses (Jupiter, Saturne)
+            ("ice", 40, 80, 2),            # 2 planètes glacées (Neptune, Pluton)
+            ("earth_like", 50, 90, 1),     # 1 planète verte (Terre-like)
+            ("lava", 35, 60, 1),           # 1 planète de volcan ardent
         ]
         
+        # Créer les planètes selon la configuration
         for planet_type, min_r, max_r, count in planet_configs:
             for _ in range(count):
+                # Position aléatoire (largeur écran + marges des deux côtés)
                 x = random.uniform(-1000, SCREEN_WIDTH + 1000)
                 y = random.uniform(-2000, SCREEN_HEIGHT + 2000)
                 radius = random.randint(min_r, max_r)
                 self.planets.append(Planet(x, y, radius, planet_type))
         
-        # Trier par taille (plus grandes en arrière)
+        # TRI IMPORTANT: Les grandes planètes d'abord (représentent des objets lointains)
+        # Cela garantit l'ordre de rendu correct: les petites (proches) par-dessus les grandes (loin)
         self.planets.sort(key=lambda p: p.radius, reverse=True)
     
     def update(self, dt):
@@ -786,7 +979,11 @@ class PlanetManager:
 
 
 class SpeedLines:
-    """Lignes de vitesse pour l'effet de mouvement rapide"""
+    """Crée des lignes de vitesse derrière la fusée pour montrer qu'elle accélère.
+    
+    Cet effet apparaît seulement quand la fusée dépasse une certaine vitesse,
+    donnant une impression de mouvement dynamique.
+    """
     
     def __init__(self):
         self.lines = []
@@ -860,7 +1057,11 @@ class SpeedLines:
 
 
 class Comet:
-    """Comète avec queue lumineuse"""
+    """Représente une comète qui traverse le ciel avec une queue lumineuse.
+    
+    Les comètes sont des éléments cosmétiques qui apparaissent aléatoirement
+    dans le ciel spatial et créent une ambiance dynamique.
+    """
     
     def __init__(self, camera_x, camera_y):
         # Spawn depuis le haut ou les côtés
@@ -951,7 +1152,11 @@ class Comet:
 
 
 class CometManager:
-    """Gestionnaire de comètes"""
+    """Gère la création et l'affichage des comètes qui traversent le ciel.
+    
+    Crée de nouvelles comètes aléatoirement et les supprime quand elles sortent
+    du champ de vision pour maintenir les performances.
+    """
     
     def __init__(self, spawn_rate=0.05):
         self.comets = []
@@ -960,18 +1165,20 @@ class CometManager:
         self.max_comets = 2
     
     def update(self, dt, camera_x, camera_y, in_space=True):
+        # Ne pas créer de comètes si on n'est pas en espace (économiser les ressources)
         if not in_space:
             self.comets.clear()
             return
         
-        # Spawn
+        # Système de spawn avec probabilité temporelle
         self.spawn_timer += dt
         if self.spawn_timer >= 1.0 / self.spawn_rate and len(self.comets) < self.max_comets:
+            # spawn_rate = 0.05 → tenter spawn tous les 20 secondes
             self.spawn_timer = 0
-            if random.random() < 0.15:  # 15% de chance
+            if random.random() < 0.15:  # Mais seulement 15% de chance d'effectuer un spawn
                 self.comets.append(Comet(camera_x, camera_y))
         
-        # Update
+        # Mettre à jour et garder seulement les comètes vivantes
         self.comets = [c for c in self.comets if c.update(dt)]
     
     def draw(self, surface, camera_x, camera_y):
@@ -980,7 +1187,11 @@ class CometManager:
 
 
 class CosmicDust:
-    """Poussière cosmique ambiante"""
+    """Crée une poussière cosmique fine qui scintille dans l'espace.
+    
+    La poussière est presque imperceptible mais ajoute de la texture
+    et de la vie au décor spatial en arrière-plan.
+    """
     
     def __init__(self):
         self.particles = []
@@ -1016,21 +1227,29 @@ class CosmicDust:
                 self.particles.remove(p)
     
     def draw(self, surface, camera_x, camera_y):
+        # Dessiner chaque grain de poussière cosmique
         for p in self.particles:
             screen_x = int(p['x'] - camera_x)
             screen_y = int(p['y'] - camera_y)
             
             if 0 <= screen_x < SCREEN_WIDTH and 0 <= screen_y < SCREEN_HEIGHT:
+                # SCINTILLEMENT: utiliser sin() pour créer une oscillation entre 0 et 1
+                # sin(phase) varie de -1 à 1, on le normalise à 0.5-1.0 pour le scintillement
                 twinkle = 0.5 + 0.5 * math.sin(p['twinkle_phase'])
-                alpha = int(p['alpha'] * twinkle)
+                alpha = int(p['alpha'] * twinkle)  # Appliquer oscillation à l'alpha
                 
+                # Créer une petite surface avec transparence pour chaque grain
                 dust_surf = pygame.Surface((4, 4), pygame.SRCALPHA)
                 pygame.draw.circle(dust_surf, (200, 200, 220, alpha), (2, 2), int(p['size']))
                 surface.blit(dust_surf, (screen_x - 2, screen_y - 2))
 
 
 class SunFlare:
-    """Soleil avec effet de lens flare"""
+    """Représente le soleil avec un effet de lens flare (effet de reflet lumineux).
+    
+    Le soleil est un élément visuel majeur qui aparaît dans le coin du ciel
+    et crée des effets de lumière réalistes (lens flare) traversant l'écran.
+    """
     
     def __init__(self):
         self.x = SCREEN_WIDTH * 0.85
@@ -1086,6 +1305,8 @@ class SunFlare:
         
         # Dessiner le soleil
         sun_rect = self.surface.get_rect(center=(screen_x, screen_y))
+        # BLEND_ADD: fusion additive = les couleurs s'ajoutent pixel par pixel
+        # Cela crée un effet lumineux impressionnant pour les objets brillants
         surface.blit(self.surface, sun_rect, special_flags=pygame.BLEND_ADD)
         
         # Lens flare (cercles le long de la ligne vers le centre)
