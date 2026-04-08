@@ -334,7 +334,8 @@ class SortingLevel:
         sim_x, sim_y = float(start_x), float(start_y)
         sim_vx, sim_vy = vx, vy
         
-        for i in range(12):
+        # Itérer 40 fois avec dt=0.03s pour obtenir 1.2 secondes de simulation
+        for i in range(40):
             dt = 0.03
             sim_vy += gravity * dt
             sim_x += sim_vx * dt
