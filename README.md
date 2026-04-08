@@ -21,11 +21,11 @@ L'espace est pollué ! La mission de votre vaisseau est simple :
 2. **Trier** correctement la récolte dans le centre de tri galactique pour maximiser votre score environnemental.
 
 ---
-<pre>
-</pre>
+
 <p align="center">
   <img src="assets/BannièreMechaniques.png" alt="Mécaniques Banner" width="100%">
 </p>
+
 
 ### Comment jouer ?
 Le jeu se divise en deux phases distinctes :
@@ -34,7 +34,7 @@ Le jeu se divise en deux phases distinctes :
 
 ### Les Commandes
 - **Flèches directionnelles** (ou **ZQSD** / **WASD**) : Déplacer le vaisseau dans l'espace.
-- **Espace** / **Clic Gauche** : Interagir / Attraper (selon le niveau).        
+- **Espace** / **Clic Gauche** : Interagir / Attraper (selon le niveau).
 - **Souris** : Glisser-déposer (Drag & Drop) les objets dans leurs poubelles respectives lors du tri.
 - **Échap** : Mettre le jeu en pause / Quitter.
 
@@ -43,8 +43,7 @@ Le jeu se divise en deux phases distinctes :
 2. **Sorting Center (Centre de tri)** : Un jeu de logique et de rapidité où vous reliez le bon déchet à sa filière de recyclage (Vert, Jaune, Bleu).
 
 ---
-<pre>
-</pre>
+
 <p align="center">
   <img src="assets/BannièreEduc&Sensi.png" alt="Éducation Banner" width="100%">   
 </p>
@@ -60,8 +59,7 @@ Prenez soin de mémoriser les correspondances :
 - **Poubelle Bleue/Grise** : Pour les **Ordures ménagères** et déchets non recyclables (ex: Yaourt, peau de banane).
 
 ---
-<pre>
-</pre>
+
 <p align="center">
   <img src="assets/BannièreTechnique.png" alt="Technique Banner" width="100%">   
 </p>
@@ -69,35 +67,35 @@ Prenez soin de mémoriser les correspondances :
 
 ### Technologies utilisées
 - **Langage** : [Python](https://www.python.org/)
-- **Moteur 2D** : [Pygame](https://www.pygame.org/) (version 2.6.1)
-- **Particules** : Système de particules customisé pour l'immersion spatiale (particle_system.py)
+- **Moteur 2D** : [Pygame](https://www.pygame.org/) (version `2.6.1`)
+- **Particules** : Système de particules customisé pour l'immersion spatiale (`particle_system.py`)
 
 ### Installation et Lancement
 
 1. **Cloner ou Télécharger le dépôt** :
-   \\\Bash
+   ```bash
    git clone https://github.com/votre-nom/SpaceK-tcher.git
    cd SpaceK-tcher
-   \\\
+   ```
 
 2. **Créer un environnement virtuel (Optionnel mais recommandé)** :
-   \\\ash
+   ```bash
    python -m venv venv
    source venv/bin/activate  # Sur Windows : venv\Scripts\activate
-   \\\
+   ```
 
 3. **Installer les dépendances** :
-   \\\ash
+   ```bash
    pip install -r requirements.txt
-   \\\
+   ```
 
 4. **Lancer le jeu** :
-   \\\ash
+   ```bash
    python main.py
-   \\\
+   ```
 
 ### Structure du Projet
-\\\	ext
+```text
 SpaceK-tcher/
 ├── assets/             # Images, Bruitages, Sons, UI
 ├── main.py             # Point d'entrée principal du jeu
@@ -109,15 +107,13 @@ SpaceK-tcher/
 ├── settings.py         # Paramètres globaux (couleurs, catégories, constantes)
 ├── utils.py            # Fonctions utilitaires
 └── requirements.txt    # Dépendances (Pygame)
-\\\
+```
 
 ---
-<pre>
-</pre>
+
 <p align="center">
   <img src="assets/BannièreCrédis.png" alt="Crédits Banner" width="100%">       
 </p>
-
 
 ### L'Équipe de développement
 - **Maxime** (ou autres noms d'équipe) - *Développeur(s) principal(aux)*        
