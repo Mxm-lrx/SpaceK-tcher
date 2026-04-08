@@ -633,7 +633,7 @@ class Level:
             alpha = int(255 * max(0, 1 - self.level_time / 8.0))
             controls_surf = pygame.Surface((500, 30), pygame.SRCALPHA)
             small_font = pygame.font.Font(None, 26)
-            controls_text = small_font.render("ESPACE: Décoller  |  ←/→: Diriger  |  Z: Boost", True, (200, 200, 200, alpha))
+            controls_text = small_font.render("ESPACE: Décoller  |  Q/D: Diriger  |  Z: Boost", True, (200, 200, 200, alpha))
             controls_surf.blit(controls_text, (0, 0))
             self.display_surface.blit(controls_surf, (SCREEN_WIDTH // 2 - 230, SCREEN_HEIGHT - 40))
 
